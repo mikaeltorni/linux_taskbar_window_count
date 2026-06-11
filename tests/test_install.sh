@@ -12,6 +12,9 @@ EXTENSION_UUID="workspace-window-count@local"
 PASS=0
 FAIL=0
 
+# assert_file_exists: Assert that a path exists, updating PASS/FAIL counters.
+# Arguments: $1 - path to check, $2 - message printed on failure.
+# Returns: 0 always (records the result in the global counters).
 assert_file_exists() {
   local path="$1" message="$2"
   if [ -e "$path" ]; then
@@ -22,6 +25,10 @@ assert_file_exists() {
   fi
 }
 
+# assert_file_contains: Assert that a file contains a fixed-string needle,
+# updating PASS/FAIL counters.
+# Arguments: $1 - path, $2 - literal substring to find, $3 - failure message.
+# Returns: 0 always (records the result in the global counters).
 assert_file_contains() {
   local path="$1" needle="$2" message="$3"
   if grep -Fq "$needle" "$path"; then
@@ -32,6 +39,9 @@ assert_file_contains() {
   fi
 }
 
+# assert_eq: Assert that two strings are equal, updating PASS/FAIL counters.
+# Arguments: $1 - expected value, $2 - actual value, $3 - failure message.
+# Returns: 0 always (records the result in the global counters).
 assert_eq() {
   local expected="$1" actual="$2" message="$3"
   if [ "$expected" = "$actual" ]; then

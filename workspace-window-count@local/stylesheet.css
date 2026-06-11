@@ -1,0 +1,24 @@
+/* Bottom-right window-count badge. Same geometry as the original badge so it
+ * fits within the icon actor without being clipped, but the background and
+ * outline are transparent — only the numeral is visible. A dark text shadow
+ * keeps it legible over any icon. Sits opposite the top-right notification
+ * counters to avoid overlap. */
+.wwc-badge {
+  background-color: transparent;
+  color: #ffffff;
+  border: 0;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: bold;
+  min-width: 20px;
+  padding: 0 5px;
+  text-align: center;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 1),
+    0 0 7px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(0, 0, 0, 0.8),
+    -2px -2px 3px rgba(0, 0, 0, 1),
+     2px -2px 3px rgba(0, 0, 0, 1),
+    -2px  2px 3px rgba(0, 0, 0, 1),
+     2px  2px 3px rgba(0, 0, 0, 1);
+}

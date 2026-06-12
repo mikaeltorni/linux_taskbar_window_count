@@ -5,7 +5,8 @@
 #   - workspace-window-count@local GNOME Shell extension deployment
 #   - idempotent enabled-extensions list update for GNOME taskbar badges
 #
-# Usage: sudo bash install.sh
+# Usage: bash install.sh          # no sudo needed; runs entirely user-level
+#        sudo bash install.sh     # also supported (clean-install chain)
 
 set -euo pipefail
 
@@ -31,13 +32,22 @@ msg() { printf "\n==> %s\n" "$*"; }
 
 # run_as_target: Run a command as the target (non-root) user with that user's
 # session environment (HOME, D-Bus, display) so GSettings/GNOME calls reach the
-# right session even when the script itself runs under sudo.
+# right session even when the script itself runs under sudo. When the script is
+# already running as the target user no sudo round-trip is made.
 # Arguments: $@ - the command and its arguments to execute.
 # Returns: the exit status of the executed command.
-run_as_target() { sudo -H -u "$TARGET_USER" env \
-  HOME="$TARGET_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
-  XDG_RUNTIME_DIR="$RUNTIME_DIR" DBUS_SESSION_BUS_ADDRESS="$USER_BUS" \
-  DISPLAY="$DISPLAY_VAL" "$@"; }
+run_as_target() {
+  if [ "$(id -u)" -eq "$TARGET_UID" ]; then
+    env HOME="$TARGET_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
+      XDG_RUNTIME_DIR="$RUNTIME_DIR" DBUS_SESSION_BUS_ADDRESS="$USER_BUS" \
+      DISPLAY="$DISPLAY_VAL" "$@"
+  else
+    sudo -H -u "$TARGET_USER" env \
+      HOME="$TARGET_HOME" USER="$TARGET_USER" LOGNAME="$TARGET_USER" \
+      XDG_RUNTIME_DIR="$RUNTIME_DIR" DBUS_SESSION_BUS_ADDRESS="$USER_BUS" \
+      DISPLAY="$DISPLAY_VAL" "$@"
+  fi
+}
 
 # append_gsettings_list: Idempotently append a value to a GSettings string-array
 # key, preserving existing entries and de-duplicating. Reads the current list,

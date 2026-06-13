@@ -41,6 +41,25 @@ It then appends `workspace-window-count@local` to:
 org.gnome.shell enabled-extensions
 ```
 
+## Extension structure
+
+- `extension.js` owns the GNOME Shell lifecycle, signal connections, and
+  refresh scheduling.
+- `badgeLifecycle.js` creates, positions, reuses, and destroys badge actors.
+- `windowDiscovery.js` counts application windows and discovers app-icon
+  delegates in the Shell actor tree.
+- `stylesheet.css` defines the badge presentation.
+
+## Tests
+
+```bash
+node --experimental-default-type=module --test tests/*.mjs
+bash tests/test_install.sh
+```
+
+The installer test uses an isolated home directory and mocked session commands
+to verify complete, repeatable deployment without changing the live desktop.
+
 ## Idempotency
 
 - Existing extension files are overwritten by the same source files.

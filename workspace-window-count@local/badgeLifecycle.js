@@ -1,0 +1,92 @@
+/**
+ * Badge actor creation, positioning, reuse, and teardown.
+ */
+
+const BADGE_KEY = '_wwcBadge';
+const RIGHT_NUDGE_PX = 4;
+
+/**
+ * Return the badge for a delegate, creating, attaching, and positioning one
+ * when necessary.
+ *
+ * The badge tracks its icon's size changes to stay anchored in the
+ * bottom-right corner and self-destructs when the icon actor is destroyed.
+ * Constructor dependencies are supplied by the extension so this module
+ * remains testable outside a live GNOME Shell process.
+ *
+ * @param {object} delegate - App-icon delegate that owns the icon actor.
+ * @param {Set<object>} badges - Registry of badges owned by the extension.
+ * @param {Function} createLabel - Factory that creates an St.Label-compatible actor.
+ * @param {Function} log - Extension logging function.
+ * @returns {St.Label} The existing or newly created badge label.
+ */
+export function ensureBadge(delegate, badges, createLabel, log) {
+  const existing = delegate[BADGE_KEY];
+  if (existing && badges.has(existing)) {
+    return existing;
+  }
+
+  const iconActor = delegate.icon;
+  const badge = createLabel({
+    style_class: 'wwc-badge',
+    text: '',
+    visible: false,
+  });
+  badge.clutter_text.set_line_wrap(false);
+  iconActor.add_child(badge);
+
+  // Nudge past the icon edge so the final glyph and shadow are not clipped.
+  const reposition = () => {
+    const width = iconActor.width;
+    const height = iconActor.height;
+    badge.set_position(
+      Math.max(0, width - badge.width + RIGHT_NUDGE_PX),
+      Math.max(0, height - badge.height)
+    );
+  };
+  const sizeSignals = [
+    iconActor.connect('notify::width', reposition),
+    iconActor.connect('notify::height', reposition),
+    badge.connect('notify::width', reposition),
+    badge.connect('notify::height', reposition),
+  ];
+  const destroyId = iconActor.connect('destroy', () => {
+    destroyBadge(badge);
+    badges.delete(badge);
+  });
+
+  badge._wwcIconActor = iconActor;
+  badge._wwcDelegate = delegate;
+  badge._wwcSignals = sizeSignals;
+  badge._wwcDestroyId = destroyId;
+  delegate[BADGE_KEY] = badge;
+  badges.add(badge);
+  reposition();
+  log('verbose', `Created badge for ${delegate.app?.get_id?.() ?? 'unknown app'}`);
+  return badge;
+}
+
+/**
+ * Tear down a badge and clear its delegate back-reference.
+ *
+ * Safe to call regardless of whether the badge is still registered in the
+ * extension's badge set. Callers remain responsible for removing it there.
+ *
+ * @param {St.Label} badge - Badge created by {@link ensureBadge}.
+ * @returns {void}
+ */
+export function destroyBadge(badge) {
+  const iconActor = badge._wwcIconActor;
+  if (iconActor) {
+    for (const id of badge._wwcSignals || []) {
+      iconActor.disconnect(id);
+    }
+    if (badge._wwcDestroyId) {
+      iconActor.disconnect(badge._wwcDestroyId);
+    }
+  }
+  if (badge._wwcDelegate && badge._wwcDelegate[BADGE_KEY] === badge) {
+    delete badge._wwcDelegate[BADGE_KEY];
+  }
+  badge.destroy();
+}

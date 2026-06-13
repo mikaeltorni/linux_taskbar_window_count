@@ -8,6 +8,7 @@ import {
   isAppIconDelegate,
   iterAppIconDelegates,
 } from './windowDiscovery.js';
+import { destroyBadge, ensureBadge } from './badgeLifecycle.js';
 
 // extension.js — workspace-window-count@local
 //
@@ -18,10 +19,10 @@ import {
 //
 // Components:
 //   - log()                          Centralized, level-aware logging helper.
+//   - badgeLifecycle.js              Creates, positions, and destroys badge actors.
 //   - windowDiscovery.js             Counts windows and discovers app-icon delegates.
 //   - WorkspaceWindowCountExtension  Extension lifecycle + badge management.
 
-const BADGE_KEY = '_wwcBadge';
 const REFRESH_DEBOUNCE_MS = 120;
 const LOG_PREFIX = '[workspace-window-count]';
 
@@ -29,6 +30,7 @@ const LOG_PREFIX = '[workspace-window-count]';
 // (more verbose) levels are suppressed so production logs stay quiet by default.
 const LOG_LEVELS = { verbose: 0, debug: 1, info: 2, warn: 3, error: 4 };
 const ACTIVE_LOG_LEVEL = LOG_LEVELS.info;
+const createBadgeLabel = properties => new St.Label(properties);
 
 /**
  * Centralized logging helper for the extension.
@@ -125,7 +127,7 @@ export default class WorkspaceWindowCountExtension extends Extension {
     this._windowSignals.clear();
     const badgeCount = this._badges.size;
     for (const badge of this._badges) {
-      this._destroyBadge(badge);
+      destroyBadge(badge);
     }
     this._badges.clear();
     log('debug', `Destroyed ${badgeCount} badge(s) during disable`);
@@ -212,7 +214,12 @@ export default class WorkspaceWindowCountExtension extends Extension {
       const isDelegate = delegate =>
         isAppIconDelegate(delegate, Shell.App, Clutter.Actor);
       for (const delegate of iterAppIconDelegates(global.stage, isDelegate)) {
-        const badge = this._ensureBadge(delegate);
+        const badge = ensureBadge(
+          delegate,
+          this._badges,
+          createBadgeLabel,
+          log
+        );
         if (!badge) {
           continue;
         }
@@ -225,7 +232,7 @@ export default class WorkspaceWindowCountExtension extends Extension {
       // Drop badges whose icons disappeared (taskbar rebuilt the actor).
       for (const badge of [...this._badges]) {
         if (!seen.has(badge)) {
-          this._destroyBadge(badge);
+          destroyBadge(badge);
           this._badges.delete(badge);
         }
       }
@@ -234,87 +241,4 @@ export default class WorkspaceWindowCountExtension extends Extension {
     }
   }
 
-  /**
-   * Return the badge for a delegate, creating, attaching, and positioning a new
-   * St.Label badge on the delegate's icon actor if one does not already exist.
-   *
-   * The badge tracks its icon's size changes to stay anchored in the bottom-right
-   * corner and self-destructs when the icon actor is destroyed.
-   *
-   * @param {object} delegate - An app-icon delegate (see {@link isAppIconDelegate}).
-   * @returns {St.Label} The existing or newly created badge label.
-   */
-  _ensureBadge(delegate) {
-    const existing = delegate[BADGE_KEY];
-    if (existing && this._badges.has(existing)) {
-      return existing;
-    }
-
-    const iconActor = delegate.icon;
-    const badge = new St.Label({
-      style_class: 'wwc-badge',
-      text: '',
-      visible: false,
-    });
-    badge.clutter_text.set_line_wrap(false);
-    iconActor.add_child(badge);
-
-    // Nudge a few pixels past the icon's right edge so the trailing digit's
-    // glyph + drop shadow don't get clipped by the icon actor's bounds.
-    const RIGHT_NUDGE_PX = 4;
-    const reposition = () => {
-      const w = iconActor.width;
-      const h = iconActor.height;
-      badge.set_position(
-        Math.max(0, w - badge.width + RIGHT_NUDGE_PX),
-        Math.max(0, h - badge.height)
-      );
-    };
-    const sizeSignals = [
-      iconActor.connect('notify::width', reposition),
-      iconActor.connect('notify::height', reposition),
-      badge.connect('notify::width', reposition),
-      badge.connect('notify::height', reposition),
-    ];
-    const destroyId = iconActor.connect('destroy', () => {
-      this._destroyBadge(badge);
-      this._badges.delete(badge);
-    });
-
-    badge._wwcIconActor = iconActor;
-    badge._wwcDelegate = delegate;
-    badge._wwcSignals = sizeSignals;
-    badge._wwcDestroyId = destroyId;
-    delegate[BADGE_KEY] = badge;
-    this._badges.add(badge);
-    reposition();
-    log('verbose', `Created badge for ${delegate.app?.get_id?.() ?? 'unknown app'}`);
-    return badge;
-  }
-
-  /**
-   * Tear down a badge: disconnect its size/destroy handlers, clear the back-
-   * reference on its delegate, and destroy the underlying actor.
-   *
-   * Safe to call regardless of whether the badge is still registered in
-   * `this._badges`; callers are responsible for removing it from that set.
-   *
-   * @param {St.Label} badge - The badge created by {@link _ensureBadge}.
-   * @returns {void}
-   */
-  _destroyBadge(badge) {
-    const iconActor = badge._wwcIconActor;
-    if (iconActor) {
-      for (const id of badge._wwcSignals || []) {
-        iconActor.disconnect(id);
-      }
-      if (badge._wwcDestroyId) {
-        iconActor.disconnect(badge._wwcDestroyId);
-      }
-    }
-    if (badge._wwcDelegate && badge._wwcDelegate[BADGE_KEY] === badge) {
-      delete badge._wwcDelegate[BADGE_KEY];
-    }
-    badge.destroy();
-  }
 }

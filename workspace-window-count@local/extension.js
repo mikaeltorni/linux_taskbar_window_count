@@ -3,6 +3,11 @@ import GLib from 'gi://GLib';
 import Shell from 'gi://Shell';
 import Clutter from 'gi://Clutter';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import {
+  countWindowsOnWorkspace,
+  isAppIconDelegate,
+  iterAppIconDelegates,
+} from './windowDiscovery.js';
 
 // extension.js — workspace-window-count@local
 //
@@ -13,9 +18,7 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 //
 // Components:
 //   - log()                          Centralized, level-aware logging helper.
-//   - countWindowsOnActiveWorkspace  Counts an app's windows on the active workspace.
-//   - isAppIconDelegate              Duck-types a taskbar app-icon delegate.
-//   - iterAppIconDelegates           Walks the actor tree yielding app-icon delegates.
+//   - windowDiscovery.js             Counts windows and discovers app-icon delegates.
 //   - WorkspaceWindowCountExtension  Extension lifecycle + badge management.
 
 const BADGE_KEY = '_wwcBadge';
@@ -51,66 +54,6 @@ function log(level, message) {
     console.warn(line);
   } else {
     console.log(line);
-  }
-}
-
-/**
- * Count windows of `app` that live on the active workspace.
- *
- * Windows that are sticky / on all workspaces are counted on every workspace
- * (get_workspace() returns the active one for them). skip_taskbar windows are
- * ignored so the badge matches what the taskbar actually represents.
- *
- * @param {Shell.App} app - The taskbar application whose windows are counted.
- * @returns {number} The number of taskbar-visible windows of `app` on the
- *   currently active workspace.
- */
-function countWindowsOnActiveWorkspace(app) {
-  const activeWs = global.workspace_manager.get_active_workspace();
-  let count = 0;
-  for (const win of app.get_windows()) {
-    if (win.skip_taskbar) {
-      continue;
-    }
-    if (win.is_on_all_workspaces() || win.get_workspace() === activeWs) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
-/**
- * Determine whether an actor's delegate is a taskbar app-icon delegate.
- *
- * A taskbar app icon delegate exposes a Shell.App via `.app` and a host actor
- * via `.icon`. We use these duck-typed properties so the extension works with
- * Dash to Panel, the stock dash, and any taskbar built on the same primitives.
- *
- * @param {object} delegate - Candidate `actor._delegate` object (may be null/undefined).
- * @returns {boolean} True if `delegate` looks like an app-icon delegate.
- */
-function isAppIconDelegate(delegate) {
-  return !!(
-    delegate &&
-    delegate.app instanceof Shell.App &&
-    delegate.icon instanceof Clutter.Actor
-  );
-}
-
-/**
- * Recursively walk an actor subtree yielding every app-icon delegate found.
- *
- * @param {Clutter.Actor} actor - Root actor to start the depth-first walk from.
- * @yields {object} Each `actor._delegate` that passes {@link isAppIconDelegate}.
- * @returns {Generator<object>} A generator over the matching delegates.
- */
-function* iterAppIconDelegates(actor) {
-  const delegate = actor._delegate;
-  if (isAppIconDelegate(delegate)) {
-    yield delegate;
-  }
-  for (const child of actor.get_children()) {
-    yield* iterAppIconDelegates(child);
   }
 }
 
@@ -266,13 +209,16 @@ export default class WorkspaceWindowCountExtension extends Extension {
   _refresh() {
     try {
       const seen = new Set();
-      for (const delegate of iterAppIconDelegates(global.stage)) {
+      const isDelegate = delegate =>
+        isAppIconDelegate(delegate, Shell.App, Clutter.Actor);
+      for (const delegate of iterAppIconDelegates(global.stage, isDelegate)) {
         const badge = this._ensureBadge(delegate);
         if (!badge) {
           continue;
         }
         seen.add(badge);
-        const count = countWindowsOnActiveWorkspace(delegate.app);
+        const activeWorkspace = global.workspace_manager.get_active_workspace();
+        const count = countWindowsOnWorkspace(delegate.app, activeWorkspace);
         badge.text = count > 1 ? String(count) : '';
         badge.visible = count > 1;
       }

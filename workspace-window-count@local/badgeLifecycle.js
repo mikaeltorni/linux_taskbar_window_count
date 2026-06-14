@@ -44,11 +44,13 @@ export function ensureBadge(delegate, badges, createLabel, log) {
       Math.max(0, height - badge.height)
     );
   };
+  // Pair each handler id with the object it was connected on so teardown
+  // disconnects from the correct source (icon size vs. badge size signals).
   const sizeSignals = [
-    iconActor.connect('notify::width', reposition),
-    iconActor.connect('notify::height', reposition),
-    badge.connect('notify::width', reposition),
-    badge.connect('notify::height', reposition),
+    [iconActor, iconActor.connect('notify::width', reposition)],
+    [iconActor, iconActor.connect('notify::height', reposition)],
+    [badge, badge.connect('notify::width', reposition)],
+    [badge, badge.connect('notify::height', reposition)],
   ];
   const destroyId = iconActor.connect('destroy', () => {
     destroyBadge(badge);
@@ -76,14 +78,12 @@ export function ensureBadge(delegate, badges, createLabel, log) {
  * @returns {void}
  */
 export function destroyBadge(badge) {
+  for (const [target, id] of badge._wwcSignals || []) {
+    target.disconnect(id);
+  }
   const iconActor = badge._wwcIconActor;
-  if (iconActor) {
-    for (const id of badge._wwcSignals || []) {
-      iconActor.disconnect(id);
-    }
-    if (badge._wwcDestroyId) {
-      iconActor.disconnect(badge._wwcDestroyId);
-    }
+  if (iconActor && badge._wwcDestroyId) {
+    iconActor.disconnect(badge._wwcDestroyId);
   }
   if (badge._wwcDelegate && badge._wwcDelegate[BADGE_KEY] === badge) {
     delete badge._wwcDelegate[BADGE_KEY];

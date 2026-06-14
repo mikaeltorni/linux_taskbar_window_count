@@ -158,7 +158,11 @@ test('destroyBadge disconnects handlers, clears the delegate, and destroys', () 
 
   assert.equal(fixture.delegate._wwcBadge, undefined);
   assert.equal(badge.destroyed, true);
-  assert.equal(fixture.icon.disconnected.length, 5);
+  // Icon owns its two size signals plus the destroy handler; the badge owns its
+  // own two size signals. Each must be disconnected from the object it was
+  // connected on, never cross-disconnected.
+  assert.equal(fixture.icon.disconnected.length, 3);
+  assert.equal(badge.disconnected.length, 2);
 });
 
 test('destroying an icon tears down and unregisters its badge', () => {

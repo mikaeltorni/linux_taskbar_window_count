@@ -75,8 +75,16 @@ metadata declares support for GNOME Shell versions 45 through 50.
 
 ## GNOME Shell reload
 
-- X11 session: restart GNOME Shell in place with Alt+F2 → `r` or
-  `busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting…")'`.
+A reload is only needed when this extension's **code** changes; the running
+Shell caches each extension's JS for its process lifetime, so the new code is
+not picked up otherwise. (Changing the extension's own GSettings keys, by
+contrast, applies live with no reload.) There is no non-disruptive
+command-line hot-reload for edited extension source — `gnome-extensions
+disable/enable` re-runs only the cached module, and the `Eval` /
+`Meta.restart()` D-Bus path is locked down on GNOME 45+.
+
+- X11 session: restart GNOME Shell in place with `Alt+F2` → type `r` → Enter
+  (windows and applications are preserved).
 - Wayland session: there is no in-place reload. Ask the user to log out and back
   in themselves; do not terminate GNOME Shell or the desktop session.
 

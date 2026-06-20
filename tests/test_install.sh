@@ -106,6 +106,12 @@ assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/stylesheet.css" "Should deploy stylesheet.css"
 assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json" "\"uuid\": \"$EXTENSION_UUID\"" "metadata.json should carry the right uuid"
 assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/badgeLifecycle.js" "wwc-badge" "badgeLifecycle.js should reference the badge style class"
+if grep -Fq "lib/gsettings_strv.py" "$REPO_ROOT/install.sh" && ! grep -Fq "python3 - <<'PY'" "$REPO_ROOT/install.sh"; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: install.sh should use extracted gsettings_strv.py helper"
+fi
 case "$(cat "$STATE_FILE")" in
   *"$EXTENSION_UUID"*) PASS=$((PASS + 1)) ;;
   *) FAIL=$((FAIL + 1)); echo "FAIL: Should enable extension via enabled-extensions (got '$(cat "$STATE_FILE")')";;

@@ -49,11 +49,20 @@ org.gnome.shell enabled-extensions
 - `windowDiscovery.js` counts application windows and discovers app-icon
   delegates in the Shell actor tree.
 - `stylesheet.css` defines the badge presentation.
+- `lib/gsettings_strv.py` parses, de-duplicates, and serializes GSettings
+  string-array values for `install.sh`, logging each run to
+  `.log/gsettings_strv.log`.
+
+## Logging
+
+- The installer helper writes timestamped logs under the repository-root
+  `.log/` directory (git-ignored runtime artifacts).
 
 ## Tests
 
 ```bash
 node --experimental-default-type=module --test tests/*.mjs
+python3 -m pytest tests/test_gsettings_strv.py
 bash tests/test_install.sh
 ```
 

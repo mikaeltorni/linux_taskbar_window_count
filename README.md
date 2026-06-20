@@ -55,6 +55,9 @@ org.gnome.shell enabled-extensions
 
 ## Logging
 
+- The extension emits prefixed, level-tagged lines to the GNOME Shell journal
+  (`journalctl --user -o cat /usr/bin/gnome-shell`); verbose/debug output is
+  suppressed below the active level so normal runs stay quiet.
 - The installer helper writes timestamped logs under the repository-root
   `.log/` directory (git-ignored runtime artifacts).
 

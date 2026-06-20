@@ -53,7 +53,7 @@ export function ensureBadge(delegate, badges, createLabel, log) {
     [badge, badge.connect('notify::height', reposition)],
   ];
   const destroyId = iconActor.connect('destroy', () => {
-    destroyBadge(badge);
+    destroyBadge(badge, log);
     badges.delete(badge);
   });
 
@@ -75,9 +75,12 @@ export function ensureBadge(delegate, badges, createLabel, log) {
  * extension's badge set. Callers remain responsible for removing it there.
  *
  * @param {St.Label} badge - Badge created by {@link ensureBadge}.
+ * @param {Function} [log] - Optional extension logging function; when supplied,
+ *   a verbose teardown line is emitted. Defaults to a no-op so the icon-destroy
+ *   path and tests can call this without a logger.
  * @returns {void}
  */
-export function destroyBadge(badge) {
+export function destroyBadge(badge, log = () => {}) {
   for (const [target, id] of badge._wwcSignals || []) {
     target.disconnect(id);
   }
@@ -85,8 +88,10 @@ export function destroyBadge(badge) {
   if (iconActor && badge._wwcDestroyId) {
     iconActor.disconnect(badge._wwcDestroyId);
   }
+  const appId = badge._wwcDelegate?.app?.get_id?.() ?? 'unknown app';
   if (badge._wwcDelegate && badge._wwcDelegate[BADGE_KEY] === badge) {
     delete badge._wwcDelegate[BADGE_KEY];
   }
   badge.destroy();
+  log('verbose', `Destroyed badge for ${appId}`);
 }

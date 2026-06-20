@@ -127,7 +127,7 @@ export default class WorkspaceWindowCountExtension extends Extension {
     this._windowSignals.clear();
     const badgeCount = this._badges.size;
     for (const badge of this._badges) {
-      destroyBadge(badge);
+      destroyBadge(badge, log);
     }
     this._badges.clear();
     log('debug', `Destroyed ${badgeCount} badge(s) during disable`);
@@ -228,14 +228,21 @@ export default class WorkspaceWindowCountExtension extends Extension {
         const count = countWindowsOnWorkspace(delegate.app, activeWorkspace);
         badge.text = count > 1 ? String(count) : '';
         badge.visible = count > 1;
+        log(
+          'verbose',
+          `${delegate.app?.get_id?.() ?? 'unknown app'}: ${count} window(s) on active workspace`
+        );
       }
       // Drop badges whose icons disappeared (taskbar rebuilt the actor).
+      let dropped = 0;
       for (const badge of [...this._badges]) {
         if (!seen.has(badge)) {
-          destroyBadge(badge);
+          destroyBadge(badge, log);
           this._badges.delete(badge);
+          dropped += 1;
         }
       }
+      log('debug', `Refresh complete: ${seen.size} badge(s) shown, ${dropped} dropped`);
     } catch (e) {
       log('error', `Refresh failed: ${e}`);
     }

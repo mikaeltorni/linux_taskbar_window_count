@@ -165,6 +165,23 @@ test('destroyBadge disconnects handlers, clears the delegate, and destroys', () 
   assert.equal(badge.disconnected.length, 2);
 });
 
+test('destroyBadge emits a verbose teardown log when a logger is supplied', () => {
+  const fixture = createFixture();
+  const log = (level, message) => fixture.logMessages.push([level, message]);
+  const badge = ensureBadge(
+    fixture.delegate,
+    fixture.badges,
+    fixture.createLabel,
+    () => {}
+  );
+
+  destroyBadge(badge, log);
+
+  assert.deepEqual(fixture.logMessages, [
+    ['verbose', 'Destroyed badge for example.desktop'],
+  ]);
+});
+
 test('destroying an icon tears down and unregisters its badge', () => {
   const fixture = createFixture();
   const badge = ensureBadge(

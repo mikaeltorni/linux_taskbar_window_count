@@ -8,6 +8,15 @@ This repository owns the `workspace-window-count@local` GNOME Shell extension,
 which draws a bottom-right badge on each taskbar app icon showing how many
 windows for that app are open on the current workspace.
 
+## Repository dependencies
+
+This repository installs and runs **standalone** — it has **no** dependency on
+any other setup repository (not even the shared component framework). The master
+installer simply clones and runs it; nothing here requires a sibling checkout.
+
+See the full cross-repository map in
+[installation_scripts/DEPENDENCIES.md](https://github.com/mikaeltorni/installation_scripts/blob/master/DEPENDENCIES.md).
+
 ## Installation
 
 Run the main setup installer:

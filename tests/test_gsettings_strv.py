@@ -47,3 +47,10 @@ def test_cli_formats_updated_array_from_current_environment(monkeypatch):
     )
 
     assert completed.stdout.strip() == "['one', 'two']"
+
+
+def test_gsettings_helper_uses_centralized_logger_only():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+
+    assert "from logging_utils import get_logger, log_call" in source
+    assert "import logging" not in source

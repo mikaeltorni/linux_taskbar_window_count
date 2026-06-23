@@ -83,6 +83,9 @@ exec "${args[@]}"
 EOF
 cat >"$BIN_DIR/gsettings" <<'EOF'
 #!/usr/bin/env bash
+if [[ "${GSETTINGS_FAIL_SET:-0}" == "1" && "${1:-}" == "set" ]]; then
+  exit 1
+fi
 if [[ "${1:-}" == "get" && "${2:-}" == "org.gnome.shell" && "${3:-}" == "enabled-extensions" ]]; then
   cat "__STATE_FILE__"
   exit 0
@@ -106,6 +109,9 @@ assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/stylesheet.css" "Should deploy stylesheet.css"
 assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json" "\"uuid\": \"$EXTENSION_UUID\"" "metadata.json should carry the right uuid"
 assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/badgeLifecycle.js" "wwc-badge" "badgeLifecycle.js should reference the badge style class"
+assert_file_exists "$REPO_ROOT/.log/install.log" "Installer should write a centralized Bash log"
+assert_file_contains "$REPO_ROOT/.log/install.log" "Deploying workspace-window-count@local GNOME Shell extension" "Installer log should include deployment state"
+assert_file_contains "$REPO_ROOT/.log/install.log" "ENTER install_window_count_extension" "Installer log should trace top-level install function"
 if grep -Fq "lib/gsettings_strv.py" "$REPO_ROOT/install.sh" && ! grep -Fq "python3 - <<'PY'" "$REPO_ROOT/install.sh"; then
   PASS=$((PASS + 1))
 else
@@ -124,6 +130,9 @@ esac
 PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >/tmp/linux-taskbar-window-count-install-2.out 2>/tmp/linux-taskbar-window-count-install-2.err || FAIL=$((FAIL + 1))
 WWC_OCCURRENCES="$(printf '%s' "$(cat "$STATE_FILE")" | grep -o "$EXTENSION_UUID" | wc -l | tr -d ' ')"
 assert_eq "1" "$WWC_OCCURRENCES" "Re-running should not duplicate the enabled entry"
+
+GSETTINGS_FAIL_SET=1 PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >/tmp/linux-taskbar-window-count-install-gsettings-fail.out 2>/tmp/linux-taskbar-window-count-install-gsettings-fail.err || FAIL=$((FAIL + 1))
+assert_file_contains /tmp/linux-taskbar-window-count-install-gsettings-fail.out "WARN: Could not update GNOME enabled-extensions" "GSettings enable failure should be visible without aborting install"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

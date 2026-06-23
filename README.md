@@ -33,7 +33,7 @@ The old `linux_configuration_setup` deployment path is now delegated to this rep
 You can also deploy this repo directly while testing from its checkout:
 
 ```bash
-sudo bash install.sh
+bash install.sh
 ```
 
 ## Deployment
@@ -58,6 +58,8 @@ org.gnome.shell enabled-extensions
 - `windowDiscovery.js` counts application windows and discovers app-icon
   delegates in the Shell actor tree.
 - `stylesheet.css` defines the badge presentation.
+- `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
+- `lib/logging_utils.py` centralizes Python file logging and call tracing.
 - `lib/gsettings_strv.py` parses, de-duplicates, and serializes GSettings
   string-array values for `install.sh`, logging each run to
   `.log/gsettings_strv.log`.
@@ -67,8 +69,9 @@ org.gnome.shell enabled-extensions
 - The extension emits prefixed, level-tagged lines to the GNOME Shell journal
   (`journalctl --user -o cat /usr/bin/gnome-shell`); verbose/debug output is
   suppressed below the active level so normal runs stay quiet.
-- The installer helper writes timestamped logs under the repository-root
-  `.log/` directory (git-ignored runtime artifacts).
+- Bash and Python helpers write timestamped logs under the repository-root
+  `.log/` directory (git-ignored runtime artifacts), routed through
+  `lib/logging.sh` and `lib/logging_utils.py`.
 
 ## Tests
 

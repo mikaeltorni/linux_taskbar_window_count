@@ -10,9 +10,12 @@ windows for that app are open on the current workspace.
 
 ## Repository dependencies
 
-This repository installs and runs **standalone** — it has **no** dependency on
-any other setup repository (not even the shared component framework). The master
-installer simply clones and runs it; nothing here requires a sibling checkout.
+This repository installs and runs **standalone**. Its only dependency is a
+**soft, build-time** one on the shared installer component framework
+(`linux_installation_scripts_functions`): the installer resolves it from a
+sibling checkout when present and otherwise downloads `component_loader.sh` on
+demand, so a fresh checkout installs without any sibling present. The extension
+itself has no runtime dependency on any other repository.
 
 See the full cross-repository map in
 [installation_scripts/DEPENDENCIES.md](https://github.com/mikaeltorni/installation_scripts/blob/master/DEPENDENCIES.md).
@@ -33,8 +36,42 @@ The old `linux_configuration_setup` deployment path is now delegated to this rep
 You can also deploy this repo directly while testing from its checkout:
 
 ```bash
-bash install.sh
+bash install.sh                   # interactive component menu (TTY), else defaults
+bash install.sh --default         # core + every default-on component, no prompts
+bash install.sh --all             # core + every component, no prompts
+bash install.sh --select count_threshold,badge_position
+bash install.sh --list-components # machine-readable component list (no deploy)
 ```
+
+## Installable components
+
+The installer follows the shared component framework, so the master installer's
+menu shows this repository with a per-feature submenu. The **core deploy**
+(copying the extension, compiling its GSettings schema, and enabling it) always
+runs first, so the window-count badge works no matter which components are
+selected. Each component below then writes one part of the configuration; all
+are **default-on**, so a plain install reproduces the built-in behavior.
+
+| Component id | What it configures | Default | Env override |
+|---|---|---|---|
+| `badge_position` | Corner the badge sits in | `bottom-right` | `WWC_BADGE_POSITION` |
+| `count_threshold` | Minimum window count to show the badge | `2` | `WWC_COUNT_THRESHOLD` |
+| `workspace_scope` | Count current workspace only vs. all workspaces | current only (`false`) | `WWC_COUNT_ALL_WORKSPACES` |
+| `badge_appearance` | Badge text/background color and font size | `#ffffff` / `transparent` / `14` | `WWC_BADGE_TEXT_COLOR`, `WWC_BADGE_BACKGROUND_COLOR`, `WWC_BADGE_FONT_SIZE` |
+
+## Customization at runtime
+
+Every component setting is also editable live — open the extension's settings in
+the GNOME Extensions app (backed by `prefs.js`), or set a key directly, e.g.:
+
+```bash
+gsettings set org.gnome.shell.extensions.workspace-window-count badge-position 'top-right'
+gsettings set org.gnome.shell.extensions.workspace-window-count count-threshold 1
+```
+
+Settings apply **live** with no Shell reload. If the GSettings schema is not
+available (e.g. it failed to compile), the extension falls back to its built-in
+defaults so the badge still works.
 
 ## Deployment
 
@@ -52,12 +89,20 @@ org.gnome.shell enabled-extensions
 
 ## Extension structure
 
-- `extension.js` owns the GNOME Shell lifecycle, signal connections, and
-  refresh scheduling.
-- `badgeLifecycle.js` creates, positions, reuses, and destroys badge actors.
-- `windowDiscovery.js` counts application windows and discovers app-icon
-  delegates in the Shell actor tree.
-- `stylesheet.css` defines the badge presentation.
+- `extension.js` owns the GNOME Shell lifecycle, signal connections, refresh
+  scheduling, and reads the GSettings schema (with a built-in default fallback)
+  to apply position, threshold, scope, and appearance live.
+- `badgeLifecycle.js` creates, anchors (any corner), restyles, reuses, and
+  destroys badge actors.
+- `windowDiscovery.js` counts application windows (current workspace or all) and
+  discovers app-icon delegates in the Shell actor tree.
+- `stylesheet.css` defines the default badge presentation; runtime color/size
+  settings are applied as an inline style on top of it.
+- `prefs.js` renders the GNOME Extensions settings dialog bound to the schema.
+- `schemas/org.gnome.shell.extensions.workspace-window-count.gschema.xml`
+  declares the customizable keys; the installer compiles it on deploy.
+- `installer/components.sh` is the component manifest; `lib/window_count_setup.sh`
+  holds the core deploy plus the per-component configuration functions.
 - `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
 - `lib/logging_utils.py` centralizes Python file logging and call tracing.
 - `lib/gsettings_strv.py` parses, de-duplicates, and serializes GSettings
@@ -94,8 +139,11 @@ to verify complete, repeatable deployment without changing the live desktop.
 ## Dependencies
 
 This repo expects `linux_installations_setup` to provide GNOME Shell, `python3`,
-and the target user's session bus before child installers run. The extension
-metadata declares support for GNOME Shell versions 45 through 50.
+`glib-compile-schemas` (package `libglib2.0-bin`, used to compile the bundled
+settings schema), and the target user's session bus before child installers run.
+If `glib-compile-schemas` is missing the core deploy still completes and the
+extension falls back to its built-in defaults. The extension metadata declares
+support for GNOME Shell versions 45 through 50.
 
 ## GNOME Shell reload
 

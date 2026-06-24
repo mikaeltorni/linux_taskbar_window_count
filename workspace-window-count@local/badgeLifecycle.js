@@ -18,9 +18,19 @@ const RIGHT_NUDGE_PX = 4;
  * @param {Set<object>} badges - Registry of badges owned by the extension.
  * @param {Function} createLabel - Factory that creates an St.Label-compatible actor.
  * @param {Function} log - Extension logging function.
+ * @param {Function} [getPosition] - Returns the current badge corner
+ *   ('top-left'|'top-right'|'bottom-left'|'bottom-right'); defaults to
+ *   'bottom-right' so callers that do not customize position keep the original
+ *   placement.
  * @returns {St.Label} The existing or newly created badge label.
  */
-export function ensureBadge(delegate, badges, createLabel, log) {
+export function ensureBadge(
+  delegate,
+  badges,
+  createLabel,
+  log,
+  getPosition = () => 'bottom-right'
+) {
   const existing = delegate[BADGE_KEY];
   if (existing && badges.has(existing)) {
     return existing;
@@ -35,14 +45,20 @@ export function ensureBadge(delegate, badges, createLabel, log) {
   badge.clutter_text.set_line_wrap(false);
   iconActor.add_child(badge);
 
-  // Nudge past the icon edge so the final glyph and shadow are not clipped.
+  // Anchor the badge in the configured corner. The right edge is nudged past
+  // the icon edge so the final glyph and shadow are not clipped; left/top edges
+  // sit flush at 0. Positions are clamped so a badge larger than its icon never
+  // gets a negative offset.
   const reposition = () => {
     const width = iconActor.width;
     const height = iconActor.height;
-    badge.set_position(
-      Math.max(0, width - badge.width + RIGHT_NUDGE_PX),
-      Math.max(0, height - badge.height)
-    );
+    const position = getPosition();
+    const onRight = position === 'top-right' || position === 'bottom-right';
+    const onBottom =
+      position === 'bottom-left' || position === 'bottom-right';
+    const x = onRight ? Math.max(0, width - badge.width + RIGHT_NUDGE_PX) : 0;
+    const y = onBottom ? Math.max(0, height - badge.height) : 0;
+    badge.set_position(x, y);
   };
   // Pair each handler id with the object it was connected on so teardown
   // disconnects from the correct source (icon size vs. badge size signals).
@@ -61,6 +77,9 @@ export function ensureBadge(delegate, badges, createLabel, log) {
   badge._wwcDelegate = delegate;
   badge._wwcSignals = sizeSignals;
   badge._wwcDestroyId = destroyId;
+  // Exposed so the extension can re-anchor every badge when the configured
+  // position changes, without recreating actors.
+  badge._wwcReposition = reposition;
   delegate[BADGE_KEY] = badge;
   badges.add(badge);
   reposition();
@@ -94,4 +113,26 @@ export function destroyBadge(badge, log = () => {}) {
   }
   badge.destroy();
   log('verbose', `Destroyed badge for ${appId}`);
+}
+
+/**
+ * Apply user-configured colors and font size to a badge as an inline style.
+ *
+ * The inline style overrides the static rules in stylesheet.css so the visual
+ * customization keys take effect live. The text shadow from the stylesheet is
+ * preserved (it is not overridden here) so the numeral stays legible over any
+ * icon regardless of the chosen colors.
+ *
+ * @param {St.Label} badge - Badge created by {@link ensureBadge}.
+ * @param {object} style - Visual settings.
+ * @param {string} style.backgroundColor - CSS background color.
+ * @param {string} style.textColor - CSS text color.
+ * @param {number} style.fontSize - Font size in pixels.
+ * @returns {void}
+ */
+export function applyBadgeStyle(badge, { backgroundColor, textColor, fontSize }) {
+  badge.style =
+    `background-color: ${backgroundColor};` +
+    ` color: ${textColor};` +
+    ` font-size: ${fontSize}px;`;
 }

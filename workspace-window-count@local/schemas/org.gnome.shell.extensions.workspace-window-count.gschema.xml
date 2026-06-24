@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="org.gnome.shell.extensions.workspace-window-count.position">
+    <value nick="top-left" value="0"/>
+    <value nick="top-right" value="1"/>
+    <value nick="bottom-left" value="2"/>
+    <value nick="bottom-right" value="3"/>
+  </enum>
+
+  <schema id="org.gnome.shell.extensions.workspace-window-count"
+          path="/org/gnome/shell/extensions/workspace-window-count/">
+    <key name="badge-position"
+         enum="org.gnome.shell.extensions.workspace-window-count.position">
+      <default>'bottom-right'</default>
+      <summary>Badge corner on each taskbar app icon</summary>
+      <description>
+        Which corner of the app icon the window-count badge is drawn in. The
+        default, bottom-right, sits opposite the top-right notification counters
+        so the two never overlap.
+      </description>
+    </key>
+
+    <key name="count-threshold" type="i">
+      <default>2</default>
+      <range min="1" max="999"/>
+      <summary>Minimum window count required to show the badge</summary>
+      <description>
+        The badge is shown only when an application has at least this many
+        windows on the counted workspace(s). The default of 2 hides the badge
+        for single-window applications; set it to 1 to always show the count.
+      </description>
+    </key>
+
+    <key name="count-all-workspaces" type="b">
+      <default>false</default>
+      <summary>Count windows across all workspaces</summary>
+      <description>
+        When false (the default) the badge counts only the application's windows
+        on the current workspace. When true it counts every window of the
+        application across all workspaces.
+      </description>
+    </key>
+
+    <key name="badge-text-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Badge text (numeral) color</summary>
+      <description>
+        Any CSS color accepted by GNOME Shell (e.g. '#ffffff', 'white',
+        'rgba(255,255,255,0.9)'). Applied live; no Shell reload is required.
+      </description>
+    </key>
+
+    <key name="badge-background-color" type="s">
+      <default>'transparent'</default>
+      <summary>Badge background color</summary>
+      <description>
+        Any CSS color accepted by GNOME Shell. The default 'transparent' keeps
+        only the numeral visible over the icon. Applied live.
+      </description>
+    </key>
+
+    <key name="badge-font-size" type="i">
+      <default>14</default>
+      <range min="6" max="64"/>
+      <summary>Badge font size in pixels</summary>
+      <description>
+        Font size of the badge numeral in pixels. Applied live.
+      </description>
+    </key>
+  </schema>
+</schemalist>

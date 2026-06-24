@@ -42,6 +42,22 @@ test('countWindowsOnWorkspace counts visible windows on the selected workspace',
   assert.equal(countWindowsOnWorkspace(app, activeWorkspace), 2);
 });
 
+test('countWindowsOnWorkspace counts across all workspaces when requested', () => {
+  const activeWorkspace = {};
+  const otherWorkspace = {};
+  const app = {
+    get_windows: () => [
+      createWindow({ workspace: activeWorkspace }),
+      createWindow({ workspace: otherWorkspace }),
+      createWindow({ workspace: otherWorkspace }),
+      createWindow({ workspace: otherWorkspace, skipTaskbar: true }),
+    ],
+  };
+
+  assert.equal(countWindowsOnWorkspace(app, activeWorkspace, false), 1);
+  assert.equal(countWindowsOnWorkspace(app, activeWorkspace, true), 3);
+});
+
 test('countWindowsOnWorkspace handles apps without windows', () => {
   assert.equal(countWindowsOnWorkspace({ get_windows: () => [] }, {}), 0);
 });

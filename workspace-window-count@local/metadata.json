@@ -3,5 +3,6 @@
   "name": "Workspace Window Count",
   "description": "Shows a bottom-right badge on each taskbar app icon counting that app's windows open on the current workspace.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.workspace-window-count",
   "version": 1
 }

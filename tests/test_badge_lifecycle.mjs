@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  applyBadgeStyle,
   destroyBadge,
   ensureBadge,
 } from '../workspace-window-count@local/badgeLifecycle.js';
@@ -127,6 +128,60 @@ test('ensureBadge repositions for icon and badge size changes', () => {
     [42, 22],
     [42, 18],
   ]);
+});
+
+test('ensureBadge anchors to the configured corner and re-anchors live', () => {
+  // icon 40x32, badge 12x10, RIGHT_NUDGE_PX 4.
+  const fixture = createFixture();
+  const badge = ensureBadge(
+    fixture.delegate,
+    fixture.badges,
+    fixture.createLabel,
+    () => {},
+    () => 'top-left'
+  );
+
+  // top-left -> x=0, y=0.
+  assert.deepEqual(badge.positions, [[0, 0]]);
+
+  // Re-anchoring uses the live getter, so the stored reposition reflects the
+  // new corner without recreating the actor.
+  fixture.delegate._wwcPosition = 'top-right';
+  const movableBadge = ensureBadge(
+    { app: { get_id: () => 'two.desktop' }, icon: fixture.icon },
+    fixture.badges,
+    fixture.createLabel,
+    () => {},
+    () => 'top-right'
+  );
+  // top-right -> x = 40-12+4 = 32, y = 0.
+  assert.deepEqual(movableBadge.positions, [[32, 0]]);
+  movableBadge._wwcReposition();
+  assert.deepEqual(movableBadge.positions, [
+    [32, 0],
+    [32, 0],
+  ]);
+});
+
+test('applyBadgeStyle sets an inline style from the config', () => {
+  const fixture = createFixture();
+  const badge = ensureBadge(
+    fixture.delegate,
+    fixture.badges,
+    fixture.createLabel,
+    () => {}
+  );
+
+  applyBadgeStyle(badge, {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    textColor: '#00ff00',
+    fontSize: 18,
+  });
+
+  assert.equal(
+    badge.style,
+    'background-color: rgba(0,0,0,0.5); color: #00ff00; font-size: 18px;'
+  );
 });
 
 test('ensureBadge clamps positions when a badge is larger than its icon', () => {

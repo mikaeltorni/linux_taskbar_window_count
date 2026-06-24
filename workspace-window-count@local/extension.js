@@ -8,7 +8,7 @@ import {
   isAppIconDelegate,
   iterAppIconDelegates,
 } from './windowDiscovery.js';
-import { destroyBadge, ensureBadge } from './badgeLifecycle.js';
+import { applyBadgeStyle, destroyBadge, ensureBadge } from './badgeLifecycle.js';
 
 // extension.js — workspace-window-count@local
 //
@@ -25,6 +25,19 @@ import { destroyBadge, ensureBadge } from './badgeLifecycle.js';
 
 const REFRESH_DEBOUNCE_MS = 120;
 const LOG_PREFIX = '[workspace-window-count]';
+
+// Built-in defaults. These mirror the gschema defaults and are the values the
+// extension uses when its GSettings schema is not installed/compiled, so the
+// core badge always works even if the optional customization component was not
+// selected at install time.
+const DEFAULT_CONFIG = {
+  position: 'bottom-right',
+  threshold: 2,
+  countAllWorkspaces: false,
+  textColor: '#ffffff',
+  backgroundColor: 'transparent',
+  fontSize: 14,
+};
 
 // Ordered log levels. Everything at or above ACTIVE_LOG_LEVEL is emitted; lower
 // (more verbose) levels are suppressed so production logs stay quiet by default.
@@ -77,6 +90,10 @@ export default class WorkspaceWindowCountExtension extends Extension {
     this._signals = [];
     this._windowSignals = new Map();
     this._refreshTimeout = 0;
+    this._settings = null;
+    this._settingsSignal = 0;
+    this._config = { ...DEFAULT_CONFIG };
+    this._loadSettings();
 
     const wm = global.workspace_manager;
     const display = global.display;
@@ -115,6 +132,11 @@ export default class WorkspaceWindowCountExtension extends Extension {
       GLib.source_remove(this._refreshTimeout);
       this._refreshTimeout = 0;
     }
+    if (this._settings && this._settingsSignal) {
+      this._settings.disconnect(this._settingsSignal);
+    }
+    this._settingsSignal = 0;
+    this._settings = null;
     for (const [obj, id] of this._signals) {
       obj.disconnect(id);
     }
@@ -144,6 +166,66 @@ export default class WorkspaceWindowCountExtension extends Extension {
    */
   _connect(obj, signal, cb) {
     this._signals.push([obj, obj.connect(signal, cb)]);
+  }
+
+  /**
+   * Load the extension's GSettings schema and subscribe to live changes.
+   *
+   * Wrapped in try/catch so a missing or uncompiled schema (e.g. the optional
+   * customization component was not installed) degrades gracefully: the badge
+   * keeps working with {@link DEFAULT_CONFIG} instead of failing to enable.
+   *
+   * @returns {void}
+   */
+  _loadSettings() {
+    try {
+      this._settings = this.getSettings();
+      this._config = this._readConfig();
+      this._settingsSignal = this._settings.connect('changed', () =>
+        this._onSettingsChanged()
+      );
+      log('debug', 'Loaded GSettings schema; live customization enabled');
+    } catch (e) {
+      this._settings = null;
+      this._config = { ...DEFAULT_CONFIG };
+      log('info', `Settings schema unavailable; using defaults (${e})`);
+    }
+  }
+
+  /**
+   * Read the current configuration from the loaded settings object.
+   *
+   * @returns {object} A config object shaped like {@link DEFAULT_CONFIG}.
+   */
+  _readConfig() {
+    if (!this._settings) {
+      return { ...DEFAULT_CONFIG };
+    }
+    return {
+      position: this._settings.get_string('badge-position'),
+      threshold: this._settings.get_int('count-threshold'),
+      countAllWorkspaces: this._settings.get_boolean('count-all-workspaces'),
+      textColor: this._settings.get_string('badge-text-color'),
+      backgroundColor: this._settings.get_string('badge-background-color'),
+      fontSize: this._settings.get_int('badge-font-size'),
+    };
+  }
+
+  /**
+   * Re-read settings and apply them live: re-anchor and restyle existing badges,
+   * then queue a refresh so counts/visibility pick up threshold and scope
+   * changes. No Shell reload is required for settings changes.
+   *
+   * @returns {void}
+   */
+  _onSettingsChanged() {
+    this._config = this._readConfig();
+    log('debug', `Settings changed; position=${this._config.position}`);
+    for (const badge of this._badges) {
+      badge._wwcReposition?.();
+      applyBadgeStyle(badge, this._config);
+    }
+    this._queueRefresh();
   }
 
   /**
@@ -213,21 +295,29 @@ export default class WorkspaceWindowCountExtension extends Extension {
       const seen = new Set();
       const isDelegate = delegate =>
         isAppIconDelegate(delegate, Shell.App, Clutter.Actor);
+      const config = this._config;
       for (const delegate of iterAppIconDelegates(global.stage, isDelegate)) {
         const badge = ensureBadge(
           delegate,
           this._badges,
           createBadgeLabel,
-          log
+          log,
+          () => this._config.position
         );
         if (!badge) {
           continue;
         }
+        applyBadgeStyle(badge, config);
         seen.add(badge);
         const activeWorkspace = global.workspace_manager.get_active_workspace();
-        const count = countWindowsOnWorkspace(delegate.app, activeWorkspace);
-        badge.text = count > 1 ? String(count) : '';
-        badge.visible = count > 1;
+        const count = countWindowsOnWorkspace(
+          delegate.app,
+          activeWorkspace,
+          config.countAllWorkspaces
+        );
+        const show = count >= config.threshold;
+        badge.text = show ? String(count) : '';
+        badge.visible = show;
         log(
           'verbose',
           `${delegate.app?.get_id?.() ?? 'unknown app'}: ${count} window(s) on active workspace`

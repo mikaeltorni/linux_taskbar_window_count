@@ -5,19 +5,26 @@
 /**
  * Count an application's taskbar-visible windows on a workspace.
  *
- * Sticky windows are counted because they are visible on every workspace.
+ * Sticky windows are counted because they are visible on every workspace. When
+ * {@link allWorkspaces} is true the workspace filter is dropped and every
+ * taskbar-visible window of the application is counted regardless of workspace.
  *
  * @param {Shell.App} app - Application whose windows should be counted.
  * @param {Meta.Workspace} workspace - Workspace currently shown to the user.
- * @returns {number} Number of visible application windows on the workspace.
+ * @param {boolean} [allWorkspaces=false] - Count across all workspaces when true.
+ * @returns {number} Number of visible application windows in scope.
  */
-export function countWindowsOnWorkspace(app, workspace) {
+export function countWindowsOnWorkspace(app, workspace, allWorkspaces = false) {
   let count = 0;
   for (const win of app.get_windows()) {
     if (win.skip_taskbar) {
       continue;
     }
-    if (win.is_on_all_workspaces() || win.get_workspace() === workspace) {
+    if (
+      allWorkspaces ||
+      win.is_on_all_workspaces() ||
+      win.get_workspace() === workspace
+    ) {
       count += 1;
     }
   }

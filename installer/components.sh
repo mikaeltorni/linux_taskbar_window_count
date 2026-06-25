@@ -10,15 +10,17 @@
 # extension's built-in behavior (badge in the bottom-right, shown at 2+ windows,
 # counting the current workspace, white-on-transparent at 14px).
 #
-# Entry format: "id|label|default(on/off)|function". The functions are defined
-# in lib/window_count_setup.sh, sourced by install.sh before this manifest.
+# Entry format: "id|label|default(on/off)|function[|detect_fn[|uninstall_fn]]".
+# The functions are defined in lib/window_count_setup.sh, sourced by install.sh
+# before this manifest. detect_* reports whether the extension schema is present
+# (so the knob applies); uninstall_* resets the knob's key(s) to the default.
 
 ISC_REPO_NAME="linux_taskbar_window_count"
 ISC_REPO_LABEL="Taskbar window-count badges"
 
 ISC_COMPONENTS=(
-  "badge_position|Badge corner on each app icon (default bottom-right)|on|wwc_configure_position"
-  "count_threshold|Minimum window count to show the badge (default 2)|on|wwc_configure_threshold"
-  "workspace_scope|Count current workspace only vs. all workspaces|on|wwc_configure_workspace_scope"
-  "badge_appearance|Badge colors and font size|on|wwc_configure_appearance"
+  "badge_position|Badge corner on each app icon (default bottom-right)|on|wwc_configure_position|detect_wwc_position|uninstall_wwc_position"
+  "count_threshold|Minimum window count to show the badge (default 2)|on|wwc_configure_threshold|detect_wwc_threshold|uninstall_wwc_threshold"
+  "workspace_scope|Count current workspace only vs. all workspaces|on|wwc_configure_workspace_scope|detect_wwc_workspace_scope|uninstall_wwc_workspace_scope"
+  "badge_appearance|Badge colors and font size|on|wwc_configure_appearance|detect_wwc_appearance|uninstall_wwc_appearance"
 )

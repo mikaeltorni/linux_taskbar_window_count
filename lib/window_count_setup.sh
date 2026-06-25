@@ -233,3 +233,40 @@ wwc_configure_appearance() {
   wwc_log_call EXIT wwc_configure_appearance "status=0"
   return 0
 }
+
+###############################################################################
+# Detection and uninstall (component lifecycle)
+###############################################################################
+# These knobs all configure the one bundled extension's GSettings schema. A knob
+# counts as "installed" when the extension's compiled schema is present (so the
+# setting actually applies); uninstalling a knob resets its key(s) to the schema
+# default. The mandatory extension deploy/enable itself is core and is not a
+# selectable component, so uninstall here never removes the extension.
+
+# wwc_schema_present: true when the bundled extension schema is readable.
+wwc_schema_present() {
+  run_as_target gsettings --schemadir "$EXTENSION_DST/schemas" \
+    get "$SCHEMA_ID" badge-position >/dev/null 2>&1
+}
+
+# wwc_reset: reset one extension schema key to its default. Best-effort.
+wwc_reset() {
+  local key="$1"
+  run_as_target gsettings --schemadir "$EXTENSION_DST/schemas" \
+    reset "$SCHEMA_ID" "$key" 2>/dev/null || true
+}
+
+detect_wwc_position()        { wwc_schema_present; }
+detect_wwc_threshold()       { wwc_schema_present; }
+detect_wwc_workspace_scope() { wwc_schema_present; }
+detect_wwc_appearance()      { wwc_schema_present; }
+
+uninstall_wwc_position()        { msg "Resetting badge-position to default";        wwc_reset badge-position; }
+uninstall_wwc_threshold()       { msg "Resetting count-threshold to default";       wwc_reset count-threshold; }
+uninstall_wwc_workspace_scope() { msg "Resetting count-all-workspaces to default";  wwc_reset count-all-workspaces; }
+uninstall_wwc_appearance() {
+  msg "Resetting badge appearance to defaults"
+  wwc_reset badge-text-color
+  wwc_reset badge-background-color
+  wwc_reset badge-font-size
+}

@@ -90,11 +90,11 @@ main() {
 # Listing/help must print only their own output (the master installer parses
 # --list-components); skip the core deploy and completion message for those.
 case "${1:-}" in
-  --list-components|--help|-h)
+  --list-components|--detect|--help|-h|--uninstall|--uninstall=*)
     load_component_framework
     source "$SCRIPT_DIR/lib/window_count_setup.sh"
     source "$SCRIPT_DIR/installer/components.sh"
-    component_main "$1"
+    component_main "$@"
     exit $?
     ;;
 esac

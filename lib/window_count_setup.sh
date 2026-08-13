@@ -86,7 +86,7 @@ append_gsettings_list() {
   wwc_log_call ENTER append_gsettings_list "schema=$schema key=$key"
   current="$(run_as_target gsettings get "$schema" "$key" 2>/dev/null || echo "[]")"
   wwc_log DEBUG "Read current GSettings string-array for $schema $key"
-  newlist="$(CURRENT="$current" python3 "$SCRIPT_DIR/lib/gsettings_strv.py" "$value")"
+  newlist="$(CURRENT="$current" wwc_bin "$value")"
   if run_as_target gsettings set "$schema" "$key" "$newlist"; then
     wwc_log INFO "Updated GSettings string-array for $schema $key"
     wwc_log_call EXIT append_gsettings_list "status=0"

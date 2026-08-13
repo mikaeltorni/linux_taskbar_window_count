@@ -39,6 +39,7 @@ export TARGET_USER TARGET_UID TARGET_HOME SCRIPT_DIR RUNTIME_DIR USER_BUS \
   ENABLED_EXTENSIONS_SCHEMA ENABLED_EXTENSIONS_KEY
 
 source "$SCRIPT_DIR/lib/logging.sh"
+source "$SCRIPT_DIR/lib/wwc_bin.sh"
 
 # msg: Print a highlighted progress message to stdout and mirror it to the
 # centralized installer log. Defined before the framework helpers load so this

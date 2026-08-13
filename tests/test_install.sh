@@ -129,11 +129,13 @@ assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSIO
 assert_file_exists "$REPO_ROOT/.log/install.log" "Installer should write a centralized Bash log"
 assert_file_contains "$REPO_ROOT/.log/install.log" "Deploying workspace-window-count@local GNOME Shell extension" "Installer log should include deployment state"
 assert_file_contains "$REPO_ROOT/.log/install.log" "ENTER install_window_count_extension" "Installer log should trace top-level install function"
-if grep -Fq "lib/gsettings_strv.py" "$REPO_ROOT/lib/window_count_setup.sh" && ! grep -Fq "python3 - <<'PY'" "$REPO_ROOT/lib/window_count_setup.sh"; then
+if grep -Fq 'wwc_bin "$value"' "$REPO_ROOT/lib/window_count_setup.sh" \
+  && ! grep -Fq "python3" "$REPO_ROOT/lib/window_count_setup.sh" \
+  && ! grep -Fq "gsettings_strv.py" "$REPO_ROOT/lib/window_count_setup.sh"; then
   PASS=$((PASS + 1))
 else
   FAIL=$((FAIL + 1))
-  echo "FAIL: installer should use extracted gsettings_strv.py helper"
+  echo "FAIL: installer should use the wwc-tools Rust helper (no Python)"
 fi
 # Default (no-arg, no TTY) run installs all default-on components, each writing
 # its key on the extension schema.

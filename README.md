@@ -104,25 +104,25 @@ org.gnome.shell enabled-extensions
 - `installer/components.sh` is the component manifest; `lib/window_count_setup.sh`
   holds the core deploy plus the per-component configuration functions.
 - `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
-- `lib/logging_utils.py` centralizes Python file logging and call tracing.
-- `lib/gsettings_strv.py` parses, de-duplicates, and serializes GSettings
+- `wwc-tools` (Rust, `src/`) parses, de-duplicates, and serializes GSettings
   string-array values for `install.sh`, logging each run to
-  `.log/gsettings_strv.log`.
+  `.log/gsettings_strv.log`. The installer builds it via
+  `scripts/build_wwc_tools.sh` and invokes it through `lib/wwc_bin.sh`.
 
 ## Logging
 
 - The extension emits prefixed, level-tagged lines to the GNOME Shell journal
   (`journalctl --user -o cat /usr/bin/gnome-shell`); verbose/debug output is
   suppressed below the active level so normal runs stay quiet.
-- Bash and Python helpers write timestamped logs under the repository-root
+- Bash and Rust helpers write timestamped logs under the repository-root
   `.log/` directory (git-ignored runtime artifacts), routed through
-  `lib/logging.sh` and `lib/logging_utils.py`.
+  `lib/logging.sh` and `src/logging.rs`.
 
 ## Tests
 
 ```bash
 node --experimental-default-type=module --test tests/*.mjs
-python3 -m pytest tests/test_gsettings_strv.py
+cargo test
 bash tests/test_install.sh
 ```
 
@@ -138,7 +138,9 @@ to verify complete, repeatable deployment without changing the live desktop.
 
 ## Dependencies
 
-This repo expects `linux_installations_setup` to provide GNOME Shell, `python3`,
+This repo expects `linux_installations_setup` to provide GNOME Shell, `cargo`
+(or Docker/Podman as a fallback so `scripts/build_wwc_tools.sh` can compile
+`wwc-tools`),
 `glib-compile-schemas` (package `libglib2.0-bin`, used to compile the bundled
 settings schema), and the target user's session bus before child installers run.
 If `glib-compile-schemas` is missing the core deploy still completes and the

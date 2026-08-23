@@ -204,6 +204,73 @@ else
   PASS=$((PASS + 1))
 fi
 
+# --- Knob lifecycle: receipts, not schema presence, decide installed state ----
+# The extension core always deploys the schema, so a schema-presence detector
+# reported every knob as installed and made non-interactive runs skip them all.
+# State must come from the install receipt instead: absent before the first run,
+# installed after it, absent again after --uninstall.
+LIFECYCLE_HOME="$TMP_DIR/lifecycle-home"
+mkdir -p "$LIFECYCLE_HOME"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'if [[ "${1:-}" == "passwd" && "${2:-}" == "mk" ]]; then\n'
+  printf '  printf "%%s\\n" "%s"\n' "$LIFECYCLE_HOME"
+  printf '  exit 0\n'
+  printf 'fi\n'
+  printf 'exec /usr/bin/getent "$@"\n'
+} >"$BIN_DIR/getent"
+chmod +x "$BIN_DIR/getent"
+
+# The sandbox HOME hides install.sh's ~/projects fallback for the shared
+# framework, and the sibling checkout only exists next to the live checkout (not
+# next to a git worktree), so resolve it here instead of letting the loader
+# reach the network.
+for candidate in "${ISC_FUNCTIONS_DIR:-}" \
+                 "$REPO_ROOT/../linux_installation_scripts_functions" \
+                 "$REPO_ROOT/../../linux_installation_scripts_functions" \
+                 "$HOME/projects/linux_installation_scripts_functions"; do
+  [ -n "$candidate" ] || continue
+  if [ -f "$candidate/component_loader.sh" ]; then
+    LIFECYCLE_ISC_DIR="$(cd "$candidate" && pwd)"
+    break
+  fi
+done
+
+run_lifecycle() {
+  PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 HOME="$LIFECYCLE_HOME" \
+    ISC_FUNCTIONS_DIR="${LIFECYCLE_ISC_DIR:-}" \
+    XDG_STATE_HOME="$LIFECYCLE_HOME/.local/state" \
+    bash "$REPO_ROOT/install.sh" "$@"
+}
+
+run_lifecycle --detect >"$TMP_DIR/detect-before.out" 2>/dev/null || FAIL=$((FAIL + 1))
+if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-before.out"; then
+  FAIL=$((FAIL + 1)); echo "FAIL: a knob must not report installed before any run"
+else
+  PASS=$((PASS + 1))
+fi
+
+run_lifecycle --default >"$TMP_DIR/lifecycle-install.out" 2>/dev/null || FAIL=$((FAIL + 1))
+run_lifecycle --detect >"$TMP_DIR/detect-after.out" 2>/dev/null || FAIL=$((FAIL + 1))
+if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-after.out"; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); echo "FAIL: knob should report installed after --default"
+fi
+
+run_lifecycle --uninstall badge_position >"$TMP_DIR/lifecycle-uninstall.out" 2>/dev/null || FAIL=$((FAIL + 1))
+run_lifecycle --detect >"$TMP_DIR/detect-removed.out" 2>/dev/null || FAIL=$((FAIL + 1))
+if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-removed.out"; then
+  FAIL=$((FAIL + 1)); echo "FAIL: knob should report absent after --uninstall"
+else
+  PASS=$((PASS + 1))
+fi
+if grep -Eq '^count_threshold[[:space:]]+installed' "$TMP_DIR/detect-removed.out"; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); echo "FAIL: uninstalling one knob must not drop the others"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 rm -rf "$TMP_DIR"

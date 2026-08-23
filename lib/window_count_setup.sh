@@ -237,11 +237,13 @@ wwc_configure_appearance() {
 ###############################################################################
 # Detection and uninstall (component lifecycle)
 ###############################################################################
-# These knobs all configure the one bundled extension's GSettings schema. A knob
-# counts as "installed" when the extension's compiled schema is present (so the
-# setting actually applies); uninstalling a knob resets its key(s) to the schema
-# default. The mandatory extension deploy/enable itself is core and is not a
-# selectable component, so uninstall here never removes the extension.
+# These knobs all configure the one bundled extension's GSettings schema.
+# Uninstalling a knob resets its key(s) to the schema default; the mandatory
+# extension deploy/enable itself is core and is not a selectable component, so
+# uninstall here never removes the extension. None of them declares a detect
+# function (see installer/components.sh): installed state comes from the
+# install receipt, because the values they write are indistinguishable from the
+# schema defaults the extension ships.
 
 # wwc_schema_present: true when the bundled extension schema is readable.
 wwc_schema_present() {
@@ -252,14 +254,13 @@ wwc_schema_present() {
 # wwc_reset: reset one extension schema key to its default. Best-effort.
 wwc_reset() {
   local key="$1"
+  if ! wwc_schema_present; then
+    msg "Extension schema not installed; skipping reset of $key"
+    return 0
+  fi
   run_as_target gsettings --schemadir "$EXTENSION_DST/schemas" \
     reset "$SCHEMA_ID" "$key" 2>/dev/null || true
 }
-
-detect_wwc_position()        { wwc_schema_present; }
-detect_wwc_threshold()       { wwc_schema_present; }
-detect_wwc_workspace_scope() { wwc_schema_present; }
-detect_wwc_appearance()      { wwc_schema_present; }
 
 uninstall_wwc_position()        { msg "Resetting badge-position to default";        wwc_reset badge-position; }
 uninstall_wwc_threshold()       { msg "Resetting count-threshold to default";       wwc_reset count-threshold; }

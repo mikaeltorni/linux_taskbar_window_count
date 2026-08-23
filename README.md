@@ -181,6 +181,15 @@ uses a live check where deterministic and otherwise an install receipt under
 `${XDG_STATE_HOME:-~/.local/state}/isc/receipts/`; a component without a reversal
 step simply clears that receipt on uninstall.
 
+Every knob here uses the receipt rather than a live check on purpose. Each one
+writes a settings value that is often identical to the schema default the
+extension already ships, so no live probe can tell "the installer applied this
+knob" from "the extension shipped that value" — and a probe for the schema
+itself would report all four as installed the moment the always-installed
+extension core deploys it, which made non-interactive runs skip every knob.
+Uninstalling a knob resets its key(s) to the schema default; the extension core
+is never removed by a knob's uninstall.
+
 ## Disclaimer
 
 This software is provided under the MIT License on an **“as is”** basis, without warranties of any kind. To the maximum extent permitted by applicable law, the authors and copyright holders shall not be liable for any claims, damages, losses, or other liability arising from the use of this software.

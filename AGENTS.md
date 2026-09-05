@@ -7,15 +7,12 @@ linux_configuration_setup.
 
 ## Clean Installation Compatibility
 
-All changes must remain compatible with a clean installation run through
-`installation_scripts/install.sh`. Do not rely on packages, files, settings, or
-manual steps that exist only on the current machine. Add every required
-dependency, asset, configuration step, and migration to this repo's installer so
-a fresh checkout can reproduce the complete setup.
+The `linux-configuration` skill owns the clean-install and root-optional
+installer rules; they are not restated here. Repository-specific installer
+facts:
 
-Keep installation steps idempotent and verify the clean-install path for every
-change with tests or structural validation before committing.
-
+Verify the clean-install path with tests or structural validation before
+committing.
 
 ## Mandatory programming guidelines prompt
 

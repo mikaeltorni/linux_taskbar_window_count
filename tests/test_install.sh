@@ -52,6 +52,13 @@ assert_eq() {
   fi
 }
 
+if grep -Fq "Phase 3 of 8" "$REPO_ROOT/README.md" || grep -Fq "8-Repo Desktop Setup Chain" "$REPO_ROOT/README.md"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: README still claims the obsolete 8-repo setup chain"
+else
+  PASS=$((PASS + 1))
+fi
+
 mkdir -p "$BIN_DIR"
 cat >"$BIN_DIR/getent" <<'EOF'
 #!/usr/bin/env bash

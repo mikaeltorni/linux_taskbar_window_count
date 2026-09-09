@@ -2,8 +2,6 @@
 
 > Part of [installation_scripts](https://github.com/mikaeltorni/installation_scripts) — the master installer that orchestrates a productivity-focused Ubuntu 24.04 desktop setup (workspaces, hotkeys, window tiling, programming tools, and more). Tested on Ubuntu 24.04.4 LTS.
 
-**Phase 3 of 8** — GNOME taskbar app-icon window-count badges.
-
 This repository owns the `workspace-window-count@local` GNOME Shell extension,
 which draws a bottom-right badge on each taskbar app icon showing how many
 windows for that app are open on the current workspace.

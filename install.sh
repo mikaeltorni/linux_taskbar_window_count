@@ -73,60 +73,20 @@ load_component_framework() {
 # Returns: the exit status of component_main.
 main() {
   msg "=== Linux Taskbar Window Count Setup ==="
-  
+
   # Load component framework and manifest before calling component_main
   load_component_framework
   source "$SCRIPT_DIR/installer/components.sh"
   source "$SCRIPT_DIR/lib/window_count_setup.sh"
   if [ -z "${ISC_COMPONENTS:-}" ]; then
-    echo "ERROR: ISC_COMPONENTS manifest is not defined." >&2  
+    echo "ERROR: ISC_COMPONENTS manifest is not defined." >&2
     exit 1
   fi
-  msg "=== Linux Taskbar Window Count Setup ==="
-  
-  # Feature-specific installation support (--features=feature1,feature2,...)
-  SELECTED_FEATURES="${FEATURES:-}"
-  
-  if [ -n "$SELECTED_FEATURES" ]; then
-    IFS="," read -ra FEATURE_ARRAY <<< "$SELECTED_FEATURES"
-    msg "Feature filter active: ${FEATURE_ARRAY[*]}"
-    
-    local select_arg=""
-    for arg in "$@"; do
-      if [[ "${arg}" == --select=* ]]; then
-        local selected_components="${arg#--select=}"
-        local filtered="" first=true
-        
-        for comp_id in ${selected_components}; do
-          for feature in "${FEATURE_ARRAY[@]}"; do  
-            if [ "$comp_id" = "$feature" ]; then
-              if $first; then filtered="$comp_id"; first=false; else filtered="$filtered,$comp_id"; fi  
-              break
-            fi  
-          done  
-        done
-        
-        select_arg="--select=$filtered"
-        break
-      fi
-    done
-    
-    # If no specific --select, use feature list directly as component IDs
-    if [ -z "$select_arg" ]; then
-      local features_as_components="" first=true
-      for feature in "${FEATURE_ARRAY[@]}"; do
-        if $first; then features_as_components="$feature"; first=false; else features_as_components="$features_as_components,$feature"; fi  
-      done
-      select_arg="--select=$features_as_components"
-    fi
-    
-    component_main "$select_arg"
-  else
-    # Deploy the extension core first, then configure its optional settings
-    install_window_count_extension
-    msg "Configuring window-count badge options"  
-    component_main "$@"
-  fi
+
+  # Deploy the extension core first, then configure its optional settings
+  install_window_count_extension
+  msg "Configuring window-count badge options"
+  component_main "$@"
 }
 
 # Listing/help must print only their own output (the master installer parses

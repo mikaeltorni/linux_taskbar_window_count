@@ -59,6 +59,19 @@ else
   PASS=$((PASS + 1))
 fi
 
+if grep -q 'SELECTED_FEATURES="${FEATURES:-}"' "$REPO_ROOT/install.sh"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: FEATURES filter must not skip the core extension deploy"
+else
+  PASS=$((PASS + 1))
+fi
+if grep -c 'Linux Taskbar Window Count Setup' "$REPO_ROOT/install.sh" | grep -qx 1; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: install banner should appear once"
+fi
+
 mkdir -p "$BIN_DIR"
 cat >"$BIN_DIR/getent" <<'EOF'
 #!/usr/bin/env bash

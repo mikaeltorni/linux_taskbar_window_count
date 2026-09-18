@@ -4,9 +4,11 @@ import Shell from 'gi://Shell';
 import Clutter from 'gi://Clutter';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import {
+  DISPLAY_WINDOW_REFRESH_SIGNALS,
   countWindowsOnWorkspace,
   isAppIconDelegate,
   iterAppIconDelegates,
+  resolveIconMonitorIndex,
 } from './windowDiscovery.js';
 import { applyBadgeStyle, destroyBadge, ensureBadge } from './badgeLifecycle.js';
 
@@ -14,8 +16,9 @@ import { applyBadgeStyle, destroyBadge, ensureBadge } from './badgeLifecycle.js'
 //
 // Draws a small badge in the BOTTOM-RIGHT corner of every taskbar app icon
 // (e.g. Dash to Panel) showing how many windows of that app are open on the
-// CURRENT workspace. Bottom-right is deliberately chosen so the badge never
-// overlaps notification counters, which live in the top-right corner.
+// CURRENT workspace on THAT MONITOR. Bottom-right is deliberately chosen so
+// the badge never overlaps notification counters, which live in the top-right
+// corner.
 //
 // Components:
 //   - log()                          Centralized, level-aware logging helper.
@@ -73,9 +76,9 @@ function log(level, message) {
 }
 
 /**
- * GNOME Shell extension that renders per-app, per-workspace window-count badges
- * on taskbar icons. Owns all signal connections, the debounce timer, and the
- * lifecycle of every badge actor it creates.
+ * GNOME Shell extension that renders per-app, per-workspace, per-monitor
+ * window-count badges on taskbar icons. Owns all signal connections, the
+ * debounce timer, and the lifecycle of every badge actor it creates.
  */
 export default class WorkspaceWindowCountExtension extends Extension {
   /**
@@ -101,11 +104,16 @@ export default class WorkspaceWindowCountExtension extends Extension {
     this._connect(wm, 'active-workspace-changed', () => this._queueRefresh());
     this._connect(wm, 'workspace-added', () => this._queueRefresh());
     this._connect(wm, 'workspace-removed', () => this._queueRefresh());
-    this._connect(display, 'window-created', (_d, win) => {
-      this._trackWindow(win);
-      this._queueRefresh();
-    });
-    this._connect(display, 'restacked', () => this._queueRefresh());
+    for (const signal of DISPLAY_WINDOW_REFRESH_SIGNALS) {
+      if (signal === 'window-created') {
+        this._connect(display, signal, (_d, win) => {
+          this._trackWindow(win);
+          this._queueRefresh();
+        });
+      } else {
+        this._connect(display, signal, () => this._queueRefresh());
+      }
+    }
 
     let tracked = 0;
     for (const actor of global.get_window_actors()) {
@@ -310,17 +318,26 @@ export default class WorkspaceWindowCountExtension extends Extension {
         applyBadgeStyle(badge, config);
         seen.add(badge);
         const activeWorkspace = global.workspace_manager.get_active_workspace();
+        const appId = delegate.app?.get_id?.() ?? 'unknown app';
+        const monitorIndex = resolveIconMonitorIndex(delegate, global.display);
+        if (monitorIndex === null) {
+          log(
+            'debug',
+            `Could not resolve monitor for ${appId}; badge count treated as 0`
+          );
+        }
         const count = countWindowsOnWorkspace(
           delegate.app,
           activeWorkspace,
-          config.countAllWorkspaces
+          config.countAllWorkspaces,
+          monitorIndex ?? -1
         );
         const show = count >= config.threshold;
         badge.text = show ? String(count) : '';
         badge.visible = show;
         log(
           'verbose',
-          `${delegate.app?.get_id?.() ?? 'unknown app'}: ${count} window(s) on active workspace`
+          `${appId}: ${count} window(s) on monitor ${monitorIndex} of active workspace`
         );
       }
       // Drop badges whose icons disappeared (taskbar rebuilt the actor).

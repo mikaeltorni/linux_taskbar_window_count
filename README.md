@@ -4,7 +4,7 @@
 
 This repository owns the `workspace-window-count@local` GNOME Shell extension,
 which draws a bottom-right badge on each taskbar app icon showing how many
-windows for that app are open on the current workspace.
+windows for that app are open on the current workspace on that icon's monitor.
 
 ## Repository dependencies
 
@@ -92,8 +92,9 @@ org.gnome.shell enabled-extensions
   to apply position, threshold, scope, and appearance live.
 - `badgeLifecycle.js` creates, anchors (any corner), restyles, reuses, and
   destroys badge actors.
-- `windowDiscovery.js` counts application windows (current workspace or all) and
-  discovers app-icon delegates in the Shell actor tree.
+- `windowDiscovery.js` counts application windows on the icon's monitor
+  (current workspace or all workspaces) and discovers app-icon delegates in
+  the Shell actor tree.
 - `stylesheet.css` defines the default badge presentation; runtime color/size
   settings are applied as an inline style on top of it.
 - `prefs.js` renders the GNOME Extensions settings dialog bound to the schema.

@@ -17,7 +17,7 @@
 #   bash install.sh --select a,b,c    # core + only the listed component ids
 #   bash install.sh --list-components # machine-readable component list (no deploy)
 #   bash install.sh --help            # usage
-#   sudo bash install.sh              # also supported (clean-install chain)
+# The master install chain may invoke this under sudo; SUDO_USER is targeted.
 
 set -euo pipefail
 

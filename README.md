@@ -1,6 +1,6 @@
 # Linux Taskbar Window Count
 
-GNOME Shell extension that shows per-app window counts on taskbar icons for the current workspace and each icon's monitor.
+GNOME Shell extension that shows per-app window counts on taskbar icons for the current workspace by default, scoped to each icon's monitor.
 
 The badge defaults to the bottom-right corner. The extension metadata declares
 GNOME Shell 45–50 support; the project is tested on Ubuntu 24.04.4 LTS.
@@ -40,16 +40,20 @@ See the full cross-repository map in
 
 ## Install the GNOME Shell window-count extension
 
-Install the extension and every default-on component from this checkout with:
+Run this repository's installer as the desktop user; standalone installation
+does not require `sudo`:
 
 ```bash
-bash install.sh --default
+bash install.sh
 ```
+
+With a terminal, the installer opens a component menu. Without a terminal, it
+deploys the extension and all default-on components. To install all default-on
+components without prompts, use `bash install.sh --default`.
 
 The broader Ubuntu desktop setup is coordinated by
 [installation_scripts](https://github.com/mikaeltorni/installation_scripts),
-which clones this repository and runs its installer for the target user. You
-can also use these commands directly:
+which invokes this installer for the selected desktop user.
 
 | Command | Behavior |
 | --- | --- |

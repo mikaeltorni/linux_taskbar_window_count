@@ -19,10 +19,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$REPO_ROOT/dist"
 DIST_BIN="$DIST_DIR/wwc-tools"
 TARGET_BIN="$REPO_ROOT/target/release/wwc-tools"
+WWC_LOG_COMPONENT=build_wwc_tools
+# shellcheck source=../lib/logging.sh
+source "$REPO_ROOT/lib/logging.sh"
 PRINT_ONLY=0
 RUST_IMAGE="${WWC_RUST_IMAGE:-rust:1-bookworm}"
-
-log() { printf '[build_wwc_tools] %s\n' "$*" >&2; }
 
 usage() {
   cat >&2 <<'EOF'
@@ -37,7 +38,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --print) PRINT_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) log "Unknown argument: $1"; usage; exit 1 ;;
+    *) wwc_log_stderr ERROR "Unknown argument: $1"; usage; exit 1 ;;
   esac
 done
 
@@ -52,7 +53,7 @@ reclaim_build_artifacts_for_invoker() {
   for path in "$DIST_DIR" "$REPO_ROOT/target" "$REPO_ROOT/.cargo-container"; do
     [ -e "$path" ] || continue
     if ! chown -R "$owner:$owner" "$path"; then
-      log "ERROR: could not chown $path to $owner (sudo-built artifacts would block later non-root rebuilds)"
+      wwc_log_stderr ERROR "Could not chown $path to $owner (sudo-built artifacts would block later non-root rebuilds)"
       return 1
     fi
   done
@@ -93,14 +94,14 @@ ensure_cargo_on_path() {
     if [ -d "$rustup_dir" ]; then
       export CARGO_HOME="${CARGO_HOME:-$cargo_root}"
       export RUSTUP_HOME="$rustup_dir"
-      log "Using rustup toolchain at $RUSTUP_HOME (HOME has no .rustup)"
+      wwc_log_stderr INFO "Using rustup toolchain at $RUSTUP_HOME (HOME has no .rustup)"
     fi
   fi
   command -v cargo >/dev/null 2>&1
 }
 
 build_with_cargo() {
-  log "Building with local cargo…"
+  wwc_log_stderr INFO "Building with local cargo…"
   (
     cd "$REPO_ROOT"
     cargo build --release --bin wwc-tools
@@ -122,10 +123,10 @@ container_engine() {
 build_with_container() {
   local engine
   engine="$(container_engine)" || {
-    log "Neither docker nor podman is available for containerized build."
+    wwc_log_stderr ERROR "Neither docker nor podman is available for containerized build."
     return 1
   }
-  log "Building with $engine ($RUST_IMAGE)…"
+  wwc_log_stderr INFO "Building with $engine ($RUST_IMAGE)…"
   mkdir -p "$DIST_DIR" "$REPO_ROOT/target"
   "$engine" run --rm \
     --user "$(id -u):$(id -g)" \
@@ -142,25 +143,25 @@ main() {
   if ensure_cargo_on_path; then
     build_with_cargo
   elif dist_is_fresh; then
-    log "Using existing $DIST_BIN (cargo unavailable; sources not newer)"
+    wwc_log_stderr INFO "Using existing $DIST_BIN (cargo unavailable; sources not newer)"
   elif build_with_container; then
     :
   elif have_binary "$TARGET_BIN"; then
     if find "$REPO_ROOT/src" "$REPO_ROOT/Cargo.toml" "$REPO_ROOT/Cargo.lock" \
          -type f -newer "$TARGET_BIN" 2>/dev/null | head -1 | grep -q .; then
-      log "Cannot promote stale $TARGET_BIN (sources are newer; install cargo or docker/podman)."
+      wwc_log_stderr ERROR "Cannot promote stale $TARGET_BIN (sources are newer; install cargo or docker/podman)."
       exit 1
     fi
-    log "WARNING: promoting existing $TARGET_BIN without rebuild (no cargo/container)"
+    wwc_log_stderr WARN "Promoting existing $TARGET_BIN without rebuild (no cargo/container)"
     mkdir -p "$DIST_DIR"
     install -m 0755 "$TARGET_BIN" "$DIST_BIN"
   else
-    log "Cannot build wwc-tools: install cargo (rustup or apt install cargo) or docker/podman."
+    wwc_log_stderr ERROR "Cannot build wwc-tools: install cargo (rustup or apt install cargo) or docker/podman."
     exit 1
   fi
 
   if ! have_binary "$DIST_BIN"; then
-    log "Build finished but $DIST_BIN is missing or not executable."
+    wwc_log_stderr ERROR "Build finished but $DIST_BIN is missing or not executable."
     exit 1
   fi
 
@@ -169,7 +170,7 @@ main() {
   if [ "$PRINT_ONLY" -eq 1 ]; then
     printf '%s\n' "$DIST_BIN"
   else
-    log "Ready: $DIST_BIN"
+    wwc_log_stderr INFO "Ready: $DIST_BIN"
   fi
 }
 

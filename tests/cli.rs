@@ -1,6 +1,7 @@
 //! CLI contract formerly covered by tests/test_gsettings_strv.py.
 
 use std::env;
+use std::path::PathBuf;
 use std::process::Command;
 
 fn bin() -> Command {
@@ -37,21 +38,30 @@ fn cli_rejects_wrong_argument_count() {
 
 #[test]
 fn cli_writes_log_under_configured_dir() {
-    let dir = tempfile_dir();
+    let dir = TemporaryLogDir::new();
     let output = bin()
         .arg("workspace-window-count@local")
         .env("CURRENT", "[]")
-        .env("TASKBAR_WINDOW_COUNT_LOG_DIR", &dir)
+        .env("TASKBAR_WINDOW_COUNT_LOG_DIR", &dir.0)
         .output()
         .expect("run wwc-tools");
     assert!(output.status.success());
-    let log = std::fs::read_to_string(std::path::Path::new(&dir).join("gsettings_strv.log"))
-        .expect("log file");
+    let log = std::fs::read_to_string(dir.0.join("gsettings_strv.log")).expect("log file");
     assert!(log.contains("Ensuring extension UUID is present in enabled-extensions"));
 }
 
-fn tempfile_dir() -> String {
-    let path = env::temp_dir().join(format!("wwc-tools-cli-{}", std::process::id()));
-    std::fs::create_dir_all(&path).expect("temp log dir");
-    path.to_string_lossy().into_owned()
+struct TemporaryLogDir(PathBuf);
+
+impl TemporaryLogDir {
+    fn new() -> Self {
+        let path = env::temp_dir().join(format!("wwc-tools-cli-{}", std::process::id()));
+        std::fs::create_dir_all(&path).expect("temp log dir");
+        Self(path)
+    }
+}
+
+impl Drop for TemporaryLogDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }

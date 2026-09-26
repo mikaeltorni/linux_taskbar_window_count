@@ -20,15 +20,15 @@ See the full cross-repository map in
 
 ## Installation
 
-Run the main setup installer:
+Run this repository's installer as the desktop user:
 
 ```bash
-sudo bash install.sh
+bash install.sh
 ```
 
-The master installer in `installation_scripts/install.sh` clones this repository,
-runs its `install.sh`, copies the extension into the target user's GNOME
-extensions directory, and enables it idempotently through GSettings.
+The master installer in `installation_scripts/install.sh` can also invoke this
+repository's `install.sh`; user-level extension deployment and settings are
+applied for the selected desktop user.
 The old `linux_configuration_setup` deployment path is now delegated to this repo.
 
 You can also deploy this repo directly while testing from its checkout:
@@ -39,6 +39,7 @@ bash install.sh --default         # core + every default-on component, no prompt
 bash install.sh --all             # core + every component, no prompts
 bash install.sh --select count_threshold,badge_position
 bash install.sh --list-components # machine-readable component list (no deploy)
+bash install.sh --help            # show installer usage
 ```
 
 ## Installable components

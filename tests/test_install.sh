@@ -5,6 +5,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d /tmp/linux-taskbar-window-count-test.XXXXXX)"
+cleanup() {
+  rm -rf -- "$TMP_DIR"
+}
+trap cleanup EXIT
 BIN_DIR="$TMP_DIR/bin"
 STATE_FILE="$TMP_DIR/gsettings-state"
 TARGET_HOME="$TMP_DIR/home"
@@ -130,10 +134,30 @@ EOF
 sed -i "s#__STATE_FILE__#$STATE_FILE#g; s#__SET_LOG__#$TMP_DIR/gsettings-sets.log#g" "$BIN_DIR/gsettings"
 SET_LOG="$TMP_DIR/gsettings-sets.log"
 : >"$SET_LOG"
+
+assert_file_contains "$REPO_ROOT/scripts/build_wwc_tools.sh" 'source "$REPO_ROOT/lib/logging.sh"' "Build helper should use the centralized Bash logger"
+assert_file_contains "$REPO_ROOT/scripts/build_wwc_tools.sh" 'wwc_log_stderr ERROR' "Build helper errors should use the centralized stderr logger"
+if grep -Eq '^[[:space:]]*log\(\)' "$REPO_ROOT/scripts/build_wwc_tools.sh"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: build helper must not define a local ad-hoc logger"
+else
+  PASS=$((PASS + 1))
+fi
+LOGGER_DIR="$TMP_DIR/build-logger"
+TASKBAR_WINDOW_COUNT_LOG_DIR="$LOGGER_DIR" WWC_LOG_COMPONENT=build_wwc_tools \
+  bash -c 'source "$1"; wwc_log_stderr INFO "build logger probe"; wwc_log_stderr ERROR "build logger error probe"' \
+  _ "$REPO_ROOT/lib/logging.sh" >"$TMP_DIR/build-logger.stdout" \
+  2>"$TMP_DIR/build-logger.stderr"
+assert_eq "" "$(cat "$TMP_DIR/build-logger.stdout")" "Build logger must preserve stdout"
+assert_file_contains "$TMP_DIR/build-logger.stderr" "[build_wwc_tools] build logger probe" "Build logger should make diagnostics visible on stderr"
+assert_file_contains "$TMP_DIR/build-logger.stderr" "[build_wwc_tools] ERROR: build logger error probe" "Build logger should retain error severity on stderr"
+assert_file_contains "$LOGGER_DIR/install.log" "[INFO] build logger probe" "Build logger should write through to the central file sink"
+assert_file_contains "$LOGGER_DIR/install.log" "[ERROR] build logger error probe" "Build logger should write error severity to the central file sink"
+
 chmod +x "$BIN_DIR/getent" "$BIN_DIR/sudo" "$BIN_DIR/gsettings"
 printf "['app-rules@local']\n" >"$STATE_FILE"
 
-PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >/tmp/linux-taskbar-window-count-install-1.out 2>/tmp/linux-taskbar-window-count-install-1.err || FAIL=$((FAIL + 1))
+PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-1.out" 2>"$TMP_DIR/install-1.err" || FAIL=$((FAIL + 1))
 
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "Should deploy extension.js"
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/badgeLifecycle.js" "Should deploy badgeLifecycle.js"
@@ -141,6 +165,7 @@ assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json" "Should deploy metadata.json"
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/stylesheet.css" "Should deploy stylesheet.css"
 assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json" "\"uuid\": \"$EXTENSION_UUID\"" "metadata.json should carry the right uuid"
+assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json" "configurable badge" "metadata should describe configurable badge behavior"
 assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/badgeLifecycle.js" "wwc-badge" "badgeLifecycle.js should reference the badge style class"
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/prefs.js" "Should deploy prefs.js settings UI"
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/schemas/org.gnome.shell.extensions.workspace-window-count.gschema.xml" "Should deploy the GSettings schema"
@@ -173,12 +198,12 @@ case "$(cat "$STATE_FILE")" in
   *) FAIL=$((FAIL + 1)); echo "FAIL: Should preserve already-enabled extensions (got '$(cat "$STATE_FILE")')";;
 esac
 
-PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >/tmp/linux-taskbar-window-count-install-2.out 2>/tmp/linux-taskbar-window-count-install-2.err || FAIL=$((FAIL + 1))
+PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-2.out" 2>"$TMP_DIR/install-2.err" || FAIL=$((FAIL + 1))
 WWC_OCCURRENCES="$(printf '%s' "$(cat "$STATE_FILE")" | grep -o "$EXTENSION_UUID" | wc -l | tr -d ' ')"
 assert_eq "1" "$WWC_OCCURRENCES" "Re-running should not duplicate the enabled entry"
 
-GSETTINGS_FAIL_SET=1 PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >/tmp/linux-taskbar-window-count-install-gsettings-fail.out 2>/tmp/linux-taskbar-window-count-install-gsettings-fail.err || FAIL=$((FAIL + 1))
-assert_file_contains /tmp/linux-taskbar-window-count-install-gsettings-fail.out "WARN: Could not update GNOME enabled-extensions" "GSettings enable failure should be visible without aborting install"
+GSETTINGS_FAIL_SET=1 PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-gsettings-fail.out" 2>"$TMP_DIR/install-gsettings-fail.err" || FAIL=$((FAIL + 1))
+assert_file_contains "$TMP_DIR/install-gsettings-fail.out" "WARN: Could not update GNOME enabled-extensions" "GSettings enable failure should be visible without aborting install"
 
 # --list-components must be side-effect free (the master installer parses it):
 # it should print the component manifest and deploy nothing into a fresh home.
@@ -220,6 +245,30 @@ assert_file_exists "$SELECT_HOME/.local/share/gnome-shell/extensions/$EXTENSION_
 assert_file_contains "$SET_LOG" "count-threshold	5" "--select count_threshold with WWC_COUNT_THRESHOLD=5 should write 5"
 if grep -Fq "	badge-position	" "$SET_LOG"; then
   FAIL=$((FAIL + 1)); echo "FAIL: --select count_threshold should not write badge-position"
+else
+  PASS=$((PASS + 1))
+fi
+
+# An empty component selection still deploys the extension core, without
+# changing any of its existing GSettings values.
+CORE_HOME="$TMP_DIR/core-only-home"
+cat >"$BIN_DIR/getent" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "passwd" && "\${2:-}" == "mk" ]]; then
+  printf '%s\n' "$CORE_HOME"
+  exit 0
+fi
+exec /usr/bin/getent "$@"
+EOF
+chmod +x "$BIN_DIR/getent"
+: >"$SET_LOG"
+if ! PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" --select "" >"$TMP_DIR/core-only.out" 2>"$TMP_DIR/core-only.err"; then
+  FAIL=$((FAIL + 1))
+  cat "$TMP_DIR/core-only.out" "$TMP_DIR/core-only.err" >&2
+fi
+assert_file_exists "$CORE_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "An empty component selection should still deploy the extension core"
+if grep -Fq "org.gnome.shell.extensions.workspace-window-count" "$SET_LOG"; then
+  FAIL=$((FAIL + 1)); echo "FAIL: core-only deployment should preserve existing extension settings"
 else
   PASS=$((PASS + 1))
 fi
@@ -293,7 +342,6 @@ fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
-rm -rf "$TMP_DIR"
 if [ "$FAIL" -ne 0 ]; then
   exit 1
 fi

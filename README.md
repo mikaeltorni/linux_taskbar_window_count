@@ -1,10 +1,30 @@
 # Linux Taskbar Window Count
 
-> Part of [installation_scripts](https://github.com/mikaeltorni/installation_scripts) — the master installer that orchestrates a productivity-focused Ubuntu 24.04 desktop setup (workspaces, hotkeys, window tiling, programming tools, and more). Tested on Ubuntu 24.04.4 LTS.
+GNOME Shell extension that shows per-app window counts on taskbar icons for the current workspace by default, scoped to each icon's monitor.
 
-This repository owns the `workspace-window-count@local` GNOME Shell extension,
-which draws a bottom-right badge on each taskbar app icon showing how many
-windows for that app are open on the current workspace on that icon's monitor.
+The badge defaults to the bottom-right corner. The extension metadata declares
+GNOME Shell 45–50 support; the project is tested on Ubuntu 24.04.4 LTS.
+
+[![Tested on Ubuntu 24.04](https://img.shields.io/badge/tested%20on-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)](https://ubuntu.com/about/release-cycle)
+[![GNOME Shell 45–50](https://img.shields.io/badge/GNOME%20Shell-45%E2%80%9350-4A86CF?logo=gnome&logoColor=white)](https://www.gnome.org/)
+[![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
+
+## Contents
+
+- [Repository dependencies](#repository-dependencies)
+- [Install the extension](#install-the-gnome-shell-window-count-extension)
+- [Window-count badge components](#window-count-badge-components)
+- [Customize window-count badges at runtime](#customize-window-count-badges-at-runtime)
+- [GNOME Shell extension deployment](#gnome-shell-extension-deployment)
+- [Extension structure](#extension-structure)
+- [Logging](#logging)
+- [Tests](#tests)
+- [Idempotency](#idempotency)
+- [Dependencies](#dependencies)
+- [GNOME Shell reload](#gnome-shell-reload)
+- [Detect, reconfigure, and uninstall](#detect-reconfigure-and-uninstall)
+- [Frequently asked questions](#frequently-asked-questions)
+- [License and disclaimer](#license-and-disclaimer)
 
 ## Repository dependencies
 
@@ -18,31 +38,33 @@ itself has no runtime dependency on any other repository.
 See the full cross-repository map in
 [installation_scripts/DEPENDENCIES.md](https://github.com/mikaeltorni/installation_scripts/blob/master/DEPENDENCIES.md).
 
-## Installation
+## Install the GNOME Shell window-count extension
 
-Run this repository's installer as the desktop user:
+Run this repository's installer as the desktop user; standalone installation
+does not require `sudo`:
 
 ```bash
 bash install.sh
 ```
 
-The master installer in `installation_scripts/install.sh` can also invoke this
-repository's `install.sh`; user-level extension deployment and settings are
-applied for the selected desktop user.
-The old `linux_configuration_setup` deployment path is now delegated to this repo.
+With a terminal, the installer opens a component menu. Without a terminal, it
+deploys the extension and all default-on components. To install all default-on
+components without prompts, use `bash install.sh --default`.
 
-You can also deploy this repo directly while testing from its checkout:
+The broader Ubuntu desktop setup is coordinated by
+[installation_scripts](https://github.com/mikaeltorni/installation_scripts),
+which invokes this installer for the selected desktop user.
 
-```bash
-bash install.sh                   # interactive component menu (TTY), else defaults
-bash install.sh --default         # core + every default-on component, no prompts
-bash install.sh --all             # core + every component, no prompts
-bash install.sh --select count_threshold,badge_position
-bash install.sh --list-components # machine-readable component list (no deploy)
-bash install.sh --help            # show installer usage
-```
+| Command | Behavior |
+| --- | --- |
+| `bash install.sh` | Open the component menu in a terminal; without a TTY, use default-on components. |
+| `bash install.sh --default` | Deploy the extension core and all default-on components without prompts. |
+| `bash install.sh --all` | Deploy the extension core and every component without prompts. |
+| `bash install.sh --select count_threshold,badge_position` | Deploy the core and only the named components. |
+| `bash install.sh --list-components` | Print component IDs and labels without deploying. |
+| `bash install.sh --help` | Show the complete installer usage. |
 
-## Installable components
+## Window-count badge components
 
 The installer follows the shared component framework, so the master installer's
 menu shows this repository with a per-feature submenu. The **core deploy**
@@ -58,7 +80,7 @@ are **default-on**, so a plain install reproduces the built-in behavior.
 | `workspace_scope` | Count current workspace only vs. all workspaces | current only (`false`) | `WWC_COUNT_ALL_WORKSPACES` |
 | `badge_appearance` | Badge text/background color and font size | `#ffffff` / `transparent` / `14` | `WWC_BADGE_TEXT_COLOR`, `WWC_BADGE_BACKGROUND_COLOR`, `WWC_BADGE_FONT_SIZE` |
 
-## Customization at runtime
+## Customize window-count badges at runtime
 
 Every component setting is also editable live — open the extension's settings in
 the GNOME Extensions app (backed by `prefs.js`), or set a key directly, e.g.:
@@ -66,13 +88,14 @@ the GNOME Extensions app (backed by `prefs.js`), or set a key directly, e.g.:
 ```bash
 gsettings set org.gnome.shell.extensions.workspace-window-count badge-position 'top-right'
 gsettings set org.gnome.shell.extensions.workspace-window-count count-threshold 1
+gsettings set org.gnome.shell.extensions.workspace-window-count count-all-workspaces true
 ```
 
 Settings apply **live** with no Shell reload. If the GSettings schema is not
 available (e.g. it failed to compile), the extension falls back to its built-in
 defaults so the badge still works.
 
-## Deployment
+## GNOME Shell extension deployment
 
 The installer deploys extension files from `workspace-window-count@local/` to:
 
@@ -169,8 +192,8 @@ can refresh configuration after a repo update or cleanly back a feature out.
 
 ```bash
 bash install.sh --detect            # show each component as installed|absent
-bash install.sh --reconfigure a,b   # re-apply (idempotent) these component ids
-bash install.sh --uninstall a,b     # uninstall these component ids
+bash install.sh --reconfigure badge_position,count_threshold
+bash install.sh --uninstall badge_position,count_threshold
 ```
 
 In the interactive menu (run `bash install.sh` on a terminal, or via the master
@@ -190,7 +213,31 @@ extension core deploys it, which made non-interactive runs skip every knob.
 Uninstalling a knob resets its key(s) to the schema default; the extension core
 is never removed by a knob's uninstall.
 
-## Disclaimer
+## Frequently asked questions
+
+### Why is the badge hidden when an app has one window?
+
+The default count threshold is two windows. Set `count-threshold` to `1` in the
+extension settings to show a badge for a single window.
+
+### Are window counts separated by monitor?
+
+Yes. Each taskbar icon counts that app's windows on the monitor associated with
+that icon.
+
+### Can the extension count windows on every workspace?
+
+Yes. Enable **Count all workspaces** in the extension settings, or set
+`count-all-workspaces` to `true` with GSettings.
+
+### Which GNOME Shell versions does the extension support?
+
+The extension metadata lists GNOME Shell versions 45 through 50. The project is
+tested on Ubuntu 24.04.4 LTS.
+
+## License and disclaimer
+
+The project uses the [MIT License](LICENSE.md).
 
 This software is provided under the MIT License on an **“as is”** basis, without warranties of any kind. To the maximum extent permitted by applicable law, the authors and copyright holders shall not be liable for any claims, damages, losses, or other liability arising from the use of this software.
 

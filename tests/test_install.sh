@@ -312,6 +312,42 @@ run_lifecycle() {
     bash "$REPO_ROOT/install.sh" "$@"
 }
 
+# The standalone config exporter runs without loading the interactive menu,
+# where the framework normally initializes optional monitor-selection state.
+: >"$SET_LOG"
+if ! run_lifecycle --export-selection >"$TMP_DIR/export-selection.json" 2>"$TMP_DIR/export-selection.err"; then
+  FAIL=$((FAIL + 1))
+  cat "$TMP_DIR/export-selection.err" >&2
+else
+  if python3 - "$TMP_DIR/export-selection.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    document = json.load(stream)
+assert document["scope"] == "standalone"
+assert set(document["components"]) == {
+    "badge_position",
+    "badge_appearance",
+    "count_threshold",
+    "workspace_scope",
+}
+PY
+  then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: --export-selection should return valid standalone component JSON"
+    cat "$TMP_DIR/export-selection.json" >&2
+  fi
+fi
+if [ -s "$SET_LOG" ]; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: --export-selection must not write desktop settings"
+else
+  PASS=$((PASS + 1))
+fi
+
 run_lifecycle --detect >"$TMP_DIR/detect-before.out" 2>/dev/null || FAIL=$((FAIL + 1))
 if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-before.out"; then
   FAIL=$((FAIL + 1)); echo "FAIL: a knob must not report installed before any run"

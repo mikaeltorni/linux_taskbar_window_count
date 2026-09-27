@@ -114,8 +114,16 @@ main() {
   component_main "$@"
 }
 
-# Listing/help must print only their own output (the master installer parses
-# --list-components); skip the core deploy and completion message for those.
+# Framework listing, reporting, and uninstall commands bypass the unconditional
+# core deploy so machine-readable output stays clean and removals stay narrow.
+case "${1:-}" in
+  --export-selection)
+    # The standalone config exporter reads optional monitor-selection state,
+    # which the framework initializes only when its interactive menu is loaded.
+    declare -gA CM_COMP_MONITOR
+    ;;
+esac
+
 case "${1:-}" in
   --list-components|--export-selection|--detect|--help|-h|--uninstall|--uninstall=*)
     load_component_framework

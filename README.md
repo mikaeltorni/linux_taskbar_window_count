@@ -62,6 +62,7 @@ which invokes this installer for the selected desktop user.
 | `bash install.sh --all` | Deploy the extension core and every component without prompts. |
 | `bash install.sh --select count_threshold,badge_position` | Deploy the core and only the named components. |
 | `bash install.sh --list-components` | Print component IDs and labels without deploying. |
+| `bash install.sh --export-selection` | Print the resolved component selection as JSON without deploying or changing settings. |
 | `bash install.sh --help` | Show the complete installer usage. |
 
 ## Window-count badge components

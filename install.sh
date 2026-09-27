@@ -92,8 +92,8 @@ load_component_framework() {
   isc_activate_components
 }
 
-# unconditionally, then route the customizable components through the shared
-# component framework.
+# main: Deploy the extension core unconditionally, then route optional settings
+# through the shared component framework.
 # Arguments: $@ - forwarded to component_main.
 # Returns: the exit status of component_main.
 main() {

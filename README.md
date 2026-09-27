@@ -61,7 +61,16 @@ which invokes this installer for the selected desktop user.
 | `bash install.sh --default` | Deploy the extension core and all default-on components without prompts. |
 | `bash install.sh --all` | Deploy the extension core and every component without prompts. |
 | `bash install.sh --select count_threshold,badge_position` | Deploy the core and only the named components. |
+| `bash install.sh --config NAME` | Load the named file from `installation_configs/` for the selection. |
+| `bash install.sh --reconfigure badge_position,count_threshold` | Re-apply the named components' configuration. |
+| `bash install.sh --uninstall badge_position,count_threshold` | Uninstall the named components. |
+| `bash install.sh --auth` | Allow authenticated Git clone or pull operations in components. |
 | `bash install.sh --list-components` | Print component IDs and labels without deploying. |
+| `bash install.sh --list-configurable-components` | Print components with nested configuration screens. |
+| `bash install.sh --list-select-configure-components` | Print components that configure during selection. |
+| `bash install.sh --list-component-config-values` | Print editable component IDs and current values. |
+| `bash install.sh --configure-component ID` | Open a component's nested configuration screen. |
+| `bash install.sh --detect` | Print each component's installed or absent state. |
 | `bash install.sh --export-selection` | Print the resolved component selection as JSON without deploying or changing settings. |
 | `bash install.sh --help` | Show the complete installer usage. |
 

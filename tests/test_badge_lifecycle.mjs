@@ -226,6 +226,43 @@ test('Ubuntu Dock uses the enclosing dash orientation and reads it live', () => 
   assert.equal(resolveBadgePosition('bottom-right', fixture.delegate), 'bottom-right');
 });
 
+test('badge overlays keep their height when the base icon uses a box layout', () => {
+  const fixture = createFixture();
+  const container = new IconActor();
+  fixture.delegate._iconContainer = container;
+  fixture.icon.add_child = child => {
+    // Ubuntu Dock's base icon allocates its whole height to the app artwork,
+    // leaving a second stacked child with no room for its numeral.
+    child.height = 0;
+    fixture.icon.children.push(child);
+  };
+  let overlay;
+  const badge = ensureBadge(
+    fixture.delegate,
+    fixture.badges,
+    fixture.createLabel,
+    () => {},
+    () => 'bottom-left',
+    source => {
+      assert.equal(source, fixture.icon);
+      overlay = new IconActor();
+      overlay.destroy = () => { overlay.destroyed = true; };
+      return overlay;
+    }
+  );
+
+  assert.equal(badge.height, 10);
+  assert.deepEqual(badge.positions, [[0, 22]]);
+  assert.deepEqual(fixture.icon.children, []);
+  assert.deepEqual(container.children, [overlay]);
+  assert.deepEqual(overlay.children, [badge]);
+
+  fixture.icon.emit('destroy');
+  assert.equal(badge.destroyed, true);
+  assert.equal(overlay.destroyed, true);
+  assert.equal(fixture.badges.size, 0);
+});
+
 test('applyBadgeStyle sets an inline style from the config', () => {
   const fixture = createFixture();
   const badge = ensureBadge(

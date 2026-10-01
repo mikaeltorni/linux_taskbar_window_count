@@ -76,6 +76,9 @@ export function resolveBadgePosition(position, delegate) {
  *   ('top-left'|'top-right'|'bottom-left'|'bottom-right'); defaults to
  *   'bottom-right' so callers that do not customize position keep the original
  *   placement.
+ * @param {Function|null} [createOverlay] - Creates an overlay constrained to
+ *   the icon's size, with a fixed layout for badge positioning. Used when the
+ *   delegate exposes an icon container; otherwise attaches to the icon itself.
  * @returns {St.Label} The existing or newly created badge label.
  */
 export function ensureBadge(
@@ -83,7 +86,8 @@ export function ensureBadge(
   badges,
   createLabel,
   log,
-  getPosition = () => 'bottom-right'
+  getPosition = () => 'bottom-right',
+  createOverlay = null
 ) {
   const existing = delegate[BADGE_KEY];
   if (existing && badges.has(existing)) {
@@ -97,7 +101,17 @@ export function ensureBadge(
     visible: false,
   });
   badge.clutter_text.set_line_wrap(false);
-  iconActor.add_child(badge);
+  // BaseIcon is a box layout: adding a label beside its artwork can squeeze
+  // the label to zero height. The container already hosts overlapping icon
+  // indicators, so give our badge a fixed-layout layer there too.
+  if (delegate._iconContainer && createOverlay) {
+    const overlay = createOverlay(iconActor);
+    overlay.add_child(badge);
+    delegate._iconContainer.add_child(overlay);
+    badge._wwcOverlay = overlay;
+  } else {
+    iconActor.add_child(badge);
+  }
 
   // Anchor the badge in the configured corner. The right edge is nudged past
   // the icon edge so the final glyph and shadow are not clipped; left/top edges
@@ -166,6 +180,7 @@ export function destroyBadge(badge, log = () => {}) {
     delete badge._wwcDelegate[BADGE_KEY];
   }
   badge.destroy();
+  badge._wwcOverlay?.destroy();
   log('verbose', `Destroyed badge for ${appId}`);
 }
 

@@ -53,6 +53,26 @@ const ACTIVE_LOG_LEVEL = LOG_LEVELS.info;
 const createBadgeLabel = properties => new St.Label(properties);
 
 /**
+ * Create a layer that follows the icon's size and positions children freely.
+ *
+ * @param {Clutter.Actor} source - Icon whose allocation the overlay follows.
+ * @returns {St.Widget} Overlay hosted beside the icon and its indicators.
+ */
+function createBadgeOverlay(source) {
+  const overlay = new St.Widget({
+    layout_manager: new Clutter.FixedLayout(),
+    reactive: false,
+    x_expand: true,
+    y_expand: true,
+  });
+  overlay.add_constraint(new Clutter.BindConstraint({
+    source,
+    coordinate: Clutter.BindCoordinate.SIZE,
+  }));
+  return overlay;
+}
+
+/**
  * Centralized logging helper for the extension.
  *
  * Emits a single, prefixed, level-tagged line to the GNOME Shell journal
@@ -314,7 +334,8 @@ export default class WorkspaceWindowCountExtension extends Extension {
           this._badges,
           createBadgeLabel,
           log,
-          () => resolveBadgePosition(this._config.position, delegate)
+          () => resolveBadgePosition(this._config.position, delegate),
+          createBadgeOverlay
         );
         if (!badge) {
           continue;

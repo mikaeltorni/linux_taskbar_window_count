@@ -104,7 +104,7 @@ build_with_cargo() {
   wwc_log_stderr INFO "Building with local cargo…"
   (
     cd "$REPO_ROOT"
-    cargo build --release --bin wwc-tools
+    cargo build --locked --release --bin wwc-tools
   )
   mkdir -p "$DIST_DIR"
   install -m 0755 "$TARGET_BIN" "$DIST_BIN"
@@ -135,7 +135,7 @@ build_with_container() {
     -v "$REPO_ROOT:/src:rw" \
     -w /src \
     "$RUST_IMAGE" \
-    cargo build --release --bin wwc-tools
+    cargo build --locked --release --bin wwc-tools
   install -m 0755 "$TARGET_BIN" "$DIST_BIN"
 }
 

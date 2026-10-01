@@ -2,6 +2,7 @@
 name = "wwc-tools"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 description = "Installer helpers for the workspace-window-count GNOME extension"
 license = "MIT"
 publish = false

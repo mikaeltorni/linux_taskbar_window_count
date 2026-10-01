@@ -43,7 +43,7 @@ const DEFAULT_CONFIG = {
   countAllWorkspaces: false,
   textColor: '#ffffff',
   backgroundColor: 'transparent',
-  fontSize: 14,
+  fontSize: 18,
 };
 
 // Ordered log levels. Everything at or above ACTIVE_LOG_LEVEL is emitted; lower

@@ -38,7 +38,7 @@ WWC_COUNT_THRESHOLD="${WWC_COUNT_THRESHOLD:-2}"
 WWC_COUNT_ALL_WORKSPACES="${WWC_COUNT_ALL_WORKSPACES:-false}"
 WWC_BADGE_TEXT_COLOR="${WWC_BADGE_TEXT_COLOR:-#ffffff}"
 WWC_BADGE_BACKGROUND_COLOR="${WWC_BADGE_BACKGROUND_COLOR:-transparent}"
-WWC_BADGE_FONT_SIZE="${WWC_BADGE_FONT_SIZE:-14}"
+WWC_BADGE_FONT_SIZE="${WWC_BADGE_FONT_SIZE:-18}"
 
 # msg: Print a highlighted progress message to stdout and mirror it to the log.
 # Defined only if install.sh has not already provided one.

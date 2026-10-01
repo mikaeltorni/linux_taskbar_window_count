@@ -1,6 +1,5 @@
-/* Bottom-right window-count badge. Same geometry as the original badge so it
- * fits within the icon actor without being clipped, but the background and
- * outline are transparent — only the numeral is visible. A dark text shadow
+/* Window-count badge anchored at the bottom of its app icon. The background
+ * and outline are transparent — only the numeral is visible. A dark text shadow
  * keeps it legible over any icon. Sits opposite the top-right notification
  * counters to avoid overlap. */
 .wwc-badge {
@@ -8,7 +7,7 @@
   color: #ffffff;
   border: 0;
   border-radius: 0;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: bold;
   min-width: 20px;
   padding: 0 5px;

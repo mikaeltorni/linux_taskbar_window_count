@@ -60,7 +60,7 @@
     </key>
 
     <key name="badge-font-size" type="i">
-      <default>14</default>
+      <default>18</default>
       <range min="6" max="64"/>
       <summary>Badge font size in pixels</summary>
       <description>

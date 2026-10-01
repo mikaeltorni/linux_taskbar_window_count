@@ -8,7 +8,7 @@
 # customizable behavior is selectable and fully editable without touching the
 # extension source. All components are default-on: a plain install reproduces the
 # extension's built-in behavior (badge in the bottom-right, shown at 2+ windows,
-# counting the current workspace, white-on-transparent at 14px).
+# counting the current workspace, white-on-transparent at 18px).
 #
 # Entry format: "id|label|default(on/off)|function[|detect_fn[|uninstall_fn]]".
 # The functions are defined in lib/window_count_setup.sh, sourced by install.sh

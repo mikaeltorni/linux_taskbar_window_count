@@ -200,6 +200,7 @@ else
   PASS=$((PASS + 1))
 fi
 
+: >"$SET_LOG"
 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-1.out" 2>"$TMP_DIR/install-1.err" || FAIL=$((FAIL + 1))
 
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "Should deploy extension.js"
@@ -234,6 +235,11 @@ for KEY in badge-position count-threshold count-all-workspaces badge-text-color 
 done
 assert_file_contains "$SET_LOG" "badge-position	'bottom-right'" "Default badge-position should preserve bottom-right"
 assert_file_contains "$SET_LOG" "count-threshold	2" "Default count-threshold should preserve 2"
+assert_file_contains "$SET_LOG" $'badge-font-size\t18' "Default install should apply the larger 18px badge"
+INSTALLED_SCHEMA_DIR="$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/schemas"
+assert_eq "18" "$(GSETTINGS_BACKEND=memory gsettings --schemadir "$INSTALLED_SCHEMA_DIR" get org.gnome.shell.extensions.workspace-window-count badge-font-size)" "Compiled schema should default to 18px even without the appearance component"
+assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/stylesheet.css" "font-size: 18px;" "Installed stylesheet should use the larger default size"
+assert_file_contains "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "fontSize: 18" "Missing-schema fallback should use the larger default size"
 case "$(cat "$STATE_FILE")" in
   *"$EXTENSION_UUID"*) PASS=$((PASS + 1)) ;;
   *) FAIL=$((FAIL + 1)); echo "FAIL: Should enable extension via enabled-extensions (got '$(cat "$STATE_FILE")')";;
@@ -474,6 +480,9 @@ run_lifecycle --default >"$TMP_DIR/lifecycle-install.out" 2>/dev/null || FAIL=$(
 : >"$SET_LOG"
 WWC_COUNT_THRESHOLD=4 run_lifecycle --reconfigure count_threshold >"$TMP_DIR/reconfigure.out" 2>/dev/null || FAIL=$((FAIL + 1))
 assert_file_contains "$SET_LOG" $'count-threshold\t4' "--reconfigure should reapply the selected component settings"
+: >"$SET_LOG"
+WWC_BADGE_FONT_SIZE=24 run_lifecycle --reconfigure badge_appearance >"$TMP_DIR/reconfigure-appearance.out" 2>/dev/null || FAIL=$((FAIL + 1))
+assert_file_contains "$SET_LOG" $'badge-font-size\t24' "Reconfiguration should preserve the requested custom font size"
 run_lifecycle --detect >"$TMP_DIR/detect-after.out" 2>/dev/null || FAIL=$((FAIL + 1))
 if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-after.out"; then
   PASS=$((PASS + 1))

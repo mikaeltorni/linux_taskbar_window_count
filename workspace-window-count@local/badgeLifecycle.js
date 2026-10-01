@@ -11,7 +11,9 @@ const RIGHT_NUDGE_PX = 4;
  * Dash to Panel app icons expose their panel directly through `dtpPanel`; the
  * panel orientation is queried live so horizontal panels keep their configured
  * corner while the default bottom-right placement moves to bottom-left on a
- * vertical panel. Explicit non-default corner choices remain unchanged.
+ * vertical panel. Ubuntu Dock and Dash to Dock expose `_isHorizontal` on the
+ * enclosing dash's delegate instead. Explicit non-default corner choices
+ * remain unchanged.
  *
  * @param {string} position - Configured badge corner.
  * @param {object} delegate - App-icon delegate, optionally carrying a panel.
@@ -37,6 +39,18 @@ export function resolveBadgePosition(position, delegate) {
     typeof panel?.geom?.vertical === 'boolean'
   ) {
     orientation = panel.geom.vertical ? 'vertical' : 'horizontal';
+  }
+
+  if (!orientation) {
+    // The dock's icon box owns the dash delegate. Start at the icon and walk
+    // its parents so item wrappers and scroll containers need no assumptions.
+    for (let actor = delegate?.icon; actor; actor = actor.get_parent?.()) {
+      const horizontal = actor._delegate?._isHorizontal;
+      if (typeof horizontal === 'boolean') {
+        orientation = horizontal ? 'horizontal' : 'vertical';
+        break;
+      }
+    }
   }
 
   if (position === 'bottom-right' && orientation === 'vertical') {

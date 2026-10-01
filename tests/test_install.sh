@@ -13,6 +13,9 @@ BIN_DIR="$TMP_DIR/bin"
 STATE_FILE="$TMP_DIR/gsettings-state"
 TARGET_HOME="$TMP_DIR/home"
 EXTENSION_UUID="workspace-window-count@local"
+# Use the invoking account so install checks work on developer machines and VMs.
+TEST_TARGET_USER="${SUDO_USER:-$(id -un)}"
+export TEST_TARGET_USER
 PASS=0
 FAIL=0
 
@@ -76,10 +79,18 @@ else
   echo "FAIL: install banner should appear once"
 fi
 
+# Ubuntu 24.04 ships Cargo 1.75, which requires lockfile format version 3.
+LOCKFILE_VERSION="$(sed -n 's/^version = //p' "$REPO_ROOT/Cargo.lock" | head -1)"
+assert_eq "3" "$LOCKFILE_VERSION" "Cargo.lock should remain readable by Ubuntu 24.04 Cargo 1.75"
+RUST_VERSION="$(sed -n 's/^rust-version = "\([^"]*\)"/\1/p' "$REPO_ROOT/Cargo.toml" | head -1)"
+assert_eq "1.75" "$RUST_VERSION" "Cargo.toml should declare the supported Ubuntu 24.04 Rust baseline"
+LOCKED_BUILD_COUNT="$(grep -cF 'cargo build --locked --release --bin wwc-tools' "$REPO_ROOT/scripts/build_wwc_tools.sh" || true)"
+assert_eq "2" "$LOCKED_BUILD_COUNT" "local and container builds should honor Cargo.lock"
+
 mkdir -p "$BIN_DIR"
 cat >"$BIN_DIR/getent" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "passwd" && "${2:-}" == "mk" ]]; then
+if [[ "${1:-}" == "passwd" && "${2:-}" == "$TEST_TARGET_USER" ]]; then
   printf '%s\n' "__TARGET_HOME__"
   exit 0
 fi
@@ -157,7 +168,7 @@ assert_file_contains "$LOGGER_DIR/install.log" "[ERROR] build logger error probe
 chmod +x "$BIN_DIR/getent" "$BIN_DIR/sudo" "$BIN_DIR/gsettings"
 printf "['app-rules@local']\n" >"$STATE_FILE"
 
-PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-1.out" 2>"$TMP_DIR/install-1.err" || FAIL=$((FAIL + 1))
+PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-1.out" 2>"$TMP_DIR/install-1.err" || FAIL=$((FAIL + 1))
 
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "Should deploy extension.js"
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/badgeLifecycle.js" "Should deploy badgeLifecycle.js"
@@ -198,11 +209,11 @@ case "$(cat "$STATE_FILE")" in
   *) FAIL=$((FAIL + 1)); echo "FAIL: Should preserve already-enabled extensions (got '$(cat "$STATE_FILE")')";;
 esac
 
-PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-2.out" 2>"$TMP_DIR/install-2.err" || FAIL=$((FAIL + 1))
+PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-2.out" 2>"$TMP_DIR/install-2.err" || FAIL=$((FAIL + 1))
 WWC_OCCURRENCES="$(printf '%s' "$(cat "$STATE_FILE")" | grep -o "$EXTENSION_UUID" | wc -l | tr -d ' ')"
 assert_eq "1" "$WWC_OCCURRENCES" "Re-running should not duplicate the enabled entry"
 
-GSETTINGS_FAIL_SET=1 PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-gsettings-fail.out" 2>"$TMP_DIR/install-gsettings-fail.err" || FAIL=$((FAIL + 1))
+GSETTINGS_FAIL_SET=1 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-gsettings-fail.out" 2>"$TMP_DIR/install-gsettings-fail.err" || FAIL=$((FAIL + 1))
 assert_file_contains "$TMP_DIR/install-gsettings-fail.out" "WARN: Could not update GNOME enabled-extensions" "GSettings enable failure should be visible without aborting install"
 
 # --list-components must be side-effect free (the master installer parses it):
@@ -210,14 +221,14 @@ assert_file_contains "$TMP_DIR/install-gsettings-fail.out" "WARN: Could not upda
 LIST_HOME="$TMP_DIR/list-home"
 cat >"$BIN_DIR/getent" <<EOF
 #!/usr/bin/env bash
-if [[ "\${1:-}" == "passwd" && "\${2:-}" == "mk" ]]; then
+if [[ "\${1:-}" == "passwd" && "\${2:-}" == "$TEST_TARGET_USER" ]]; then
   printf '%s\n' "$LIST_HOME"
   exit 0
 fi
 exec /usr/bin/getent "\$@"
 EOF
 chmod +x "$BIN_DIR/getent"
-PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" --list-components >"$TMP_DIR/list.out" 2>/dev/null || FAIL=$((FAIL + 1))
+PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" --list-components >"$TMP_DIR/list.out" 2>/dev/null || FAIL=$((FAIL + 1))
 for ID in badge_position count_threshold workspace_scope badge_appearance; do
   assert_file_contains "$TMP_DIR/list.out" "$ID" "--list-components should list $ID"
 done
@@ -232,7 +243,7 @@ fi
 SELECT_HOME="$TMP_DIR/select-home"
 cat >"$BIN_DIR/getent" <<EOF
 #!/usr/bin/env bash
-if [[ "\${1:-}" == "passwd" && "\${2:-}" == "mk" ]]; then
+if [[ "\${1:-}" == "passwd" && "\${2:-}" == "$TEST_TARGET_USER" ]]; then
   printf '%s\n' "$SELECT_HOME"
   exit 0
 fi
@@ -240,7 +251,7 @@ exec /usr/bin/getent "\$@"
 EOF
 chmod +x "$BIN_DIR/getent"
 : >"$SET_LOG"
-WWC_COUNT_THRESHOLD=5 PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" --select count_threshold >"$TMP_DIR/select.out" 2>/dev/null || FAIL=$((FAIL + 1))
+WWC_COUNT_THRESHOLD=5 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" --select count_threshold >"$TMP_DIR/select.out" 2>/dev/null || FAIL=$((FAIL + 1))
 assert_file_exists "$SELECT_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "--select should still run the unconditional core deploy"
 assert_file_contains "$SET_LOG" "count-threshold	5" "--select count_threshold with WWC_COUNT_THRESHOLD=5 should write 5"
 if grep -Fq "	badge-position	" "$SET_LOG"; then
@@ -254,7 +265,7 @@ fi
 CORE_HOME="$TMP_DIR/core-only-home"
 cat >"$BIN_DIR/getent" <<EOF
 #!/usr/bin/env bash
-if [[ "\${1:-}" == "passwd" && "\${2:-}" == "mk" ]]; then
+if [[ "\${1:-}" == "passwd" && "\${2:-}" == "$TEST_TARGET_USER" ]]; then
   printf '%s\n' "$CORE_HOME"
   exit 0
 fi
@@ -262,7 +273,7 @@ exec /usr/bin/getent "$@"
 EOF
 chmod +x "$BIN_DIR/getent"
 : >"$SET_LOG"
-if ! PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 bash "$REPO_ROOT/install.sh" --select "" >"$TMP_DIR/core-only.out" 2>"$TMP_DIR/core-only.err"; then
+if ! PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" --select "" >"$TMP_DIR/core-only.out" 2>"$TMP_DIR/core-only.err"; then
   FAIL=$((FAIL + 1))
   cat "$TMP_DIR/core-only.out" "$TMP_DIR/core-only.err" >&2
 fi
@@ -282,7 +293,7 @@ LIFECYCLE_HOME="$TMP_DIR/lifecycle-home"
 mkdir -p "$LIFECYCLE_HOME"
 {
   printf '#!/usr/bin/env bash\n'
-  printf 'if [[ "${1:-}" == "passwd" && "${2:-}" == "mk" ]]; then\n'
+  printf 'if [[ "${1:-}" == "passwd" && "${2:-}" == "$TEST_TARGET_USER" ]]; then\n'
   printf '  printf "%%s\\n" "%s"\n' "$LIFECYCLE_HOME"
   printf '  exit 0\n'
   printf 'fi\n'
@@ -306,7 +317,7 @@ for candidate in "${ISC_FUNCTIONS_DIR:-}" \
 done
 
 run_lifecycle() {
-  PATH="$BIN_DIR:$PATH" SUDO_USER=mk DISPLAY=:99 HOME="$LIFECYCLE_HOME" \
+  PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$LIFECYCLE_HOME" \
     ISC_FUNCTIONS_DIR="${LIFECYCLE_ISC_DIR:-}" \
     XDG_STATE_HOME="$LIFECYCLE_HOME/.local/state" \
     bash "$REPO_ROOT/install.sh" "$@"

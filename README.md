@@ -28,20 +28,23 @@ GNOME Shell 45–50 support; the project is tested on Ubuntu 24.04.4 LTS.
 
 ## Repository dependencies
 
-This repository installs and runs **standalone**. Its only dependency is a
-**soft, build-time** one on the shared installer component framework
-(`linux_installation_scripts_functions`): the installer resolves it from a
-sibling checkout when present and otherwise downloads `component_loader.sh` on
-demand, so a fresh checkout installs without any sibling present. The extension
-itself has no runtime dependency on any other repository.
+The extension itself has no runtime dependency on another repository.
+The installer uses the shared component framework
+(`linux_installation_scripts_functions`) for its component menu and command
+handling. The desktop setup chain provides a sibling checkout. A direct
+`bash install.sh` run attempts to clone the framework when no sibling exists;
+that repository is private, so direct installation requires an existing sibling
+checkout or authorized GitHub access. Without either, the installer stops
+before deployment.
 
 See the full cross-repository map in
 [installation_scripts/DEPENDENCIES.md](https://github.com/mikaeltorni/installation_scripts/blob/master/DEPENDENCIES.md).
 
 ## Install the GNOME Shell window-count extension
 
-Run this repository's installer as the desktop user; standalone installation
-does not require `sudo`:
+Run this repository's installer as the desktop user. This user-level install
+does not require `sudo`; direct use still needs the framework access described
+above:
 
 ```bash
 bash install.sh
@@ -155,7 +158,7 @@ org.gnome.shell enabled-extensions
 
 ```bash
 node --experimental-default-type=module --test tests/*.mjs
-cargo test
+cargo test --locked
 bash tests/test_install.sh
 ```
 
@@ -171,12 +174,15 @@ to verify complete, repeatable deployment without changing the live desktop.
 
 ## Dependencies
 
-This repo expects `linux_installations_setup` to provide GNOME Shell, `cargo`
-(or Docker/Podman as a fallback so `scripts/build_wwc_tools.sh` can compile
-`wwc-tools`),
-`glib-compile-schemas` (package `libglib2.0-bin`, used to compile the bundled
-settings schema), and the target user's session bus before child installers run.
-If `glib-compile-schemas` is missing the core deploy still completes and the
+This repo expects `linux_installations_setup` to provide GNOME Shell, the
+shared installer framework, Cargo 1.75 or newer, `glib-compile-schemas`
+(package `libglib2.0-bin`), and the target user's session bus before child
+installers run. `Cargo.lock` uses format 3 so Ubuntu 24.04's packaged Cargo
+1.75 can read it. Docker/Podman can build `wwc-tools` when Cargo is unavailable.
+A direct install without a sibling framework checkout also needs Git and
+authorized access to the private framework repository.
+
+If `glib-compile-schemas` is missing, the core deploy still completes and the
 extension falls back to its built-in defaults. The extension metadata declares
 support for GNOME Shell versions 45 through 50.
 

@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { beforeEach, test } from 'node:test';
 
 import {
   applyBadgeStyle,
   destroyBadge,
   ensureBadge,
+  resolveBadgePosition,
 } from '../workspace-window-count@local/badgeLifecycle.js';
 
 let nextSignalId = 1;
+
+beforeEach(() => {
+  nextSignalId = 1;
+});
 
 class SignalTarget {
   constructor() {
@@ -161,6 +166,39 @@ test('ensureBadge anchors to the configured corner and re-anchors live', () => {
     [32, 0],
     [32, 0],
   ]);
+});
+
+test('vertical panels use bottom-left while horizontal and custom positions stay unchanged', () => {
+  const verticalDelegate = {
+    dtpPanel: { getOrientation: () => 'VERTICAL' },
+  };
+  const horizontalDelegate = {
+    dtpPanel: { getOrientation: () => 'HORIZONTAL' },
+  };
+
+  assert.equal(
+    resolveBadgePosition('bottom-right', verticalDelegate),
+    'bottom-left'
+  );
+  assert.equal(
+    resolveBadgePosition('bottom-right', horizontalDelegate),
+    'bottom-right'
+  );
+  assert.equal(
+    resolveBadgePosition('top-right', verticalDelegate),
+    'top-right'
+  );
+
+  const fixture = createFixture();
+  fixture.delegate.dtpPanel = verticalDelegate.dtpPanel;
+  const badge = ensureBadge(
+    fixture.delegate,
+    fixture.badges,
+    fixture.createLabel,
+    () => {},
+    () => resolveBadgePosition('bottom-right', fixture.delegate)
+  );
+  assert.deepEqual(badge.positions, [[0, 22]]);
 });
 
 test('applyBadgeStyle sets an inline style from the config', () => {

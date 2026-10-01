@@ -7,7 +7,7 @@
 # which optional components are selected. Each customizable behavior (badge
 # position, the minimum window-count threshold, current-vs-all-workspace
 # counting, and badge colors/size) is a selectable component routed through the
-# shared installer component framework, so a clean install reproduces the
+# repository-local component runtime, so a clean install reproduces the
 # built-in behavior while every part stays fully customizable.
 #
 # Usage:
@@ -42,8 +42,8 @@ source "$SCRIPT_DIR/lib/logging.sh"
 source "$SCRIPT_DIR/lib/wwc_bin.sh"
 
 # msg: Print a highlighted progress message to stdout and mirror it to the
-# centralized installer log. Defined before the framework helpers load so this
-# logging-aware version (not the framework's plain printf) is used throughout.
+# centralized installer log. Defined before setup helpers load so this
+# logging-aware version is used throughout.
 # Arguments: $* - the message text to display.
 # Returns: 0 always.
 msg() {
@@ -51,58 +51,17 @@ msg() {
   wwc_log INFO "$*"
 }
 
-# load_component_framework: Load the shared installer component framework from a
-# sibling checkout of linux_installation_scripts_functions, falling back to a
-# credential-aware clone so a standalone clean install works without it.
-# Returns: 0 once isc_activate_components has run.
-load_component_framework() {
-  local d framework_ref framework_key framework_cache framework_loader framework_tmp
-  for d in "${ISC_FUNCTIONS_DIR:-}" \
-           "$SCRIPT_DIR/../linux_installation_scripts_functions" \
-           "$HOME/projects/linux_installation_scripts_functions"; do
-    [[ -n "$d" && -f "$d/component_loader.sh" ]] && { source "$d/component_loader.sh"; break; }
-  done
-  if ! declare -F isc_activate_components >/dev/null 2>&1; then
-    framework_ref="${ISC_FUNCTIONS_REF:-master}"
-    framework_key="${framework_ref//\//_}"
-    framework_cache="${XDG_CACHE_HOME:-$HOME/.cache}/installation_scripts/framework-${framework_key}"
-    framework_loader="$framework_cache/component_loader.sh"
-    if [[ ! -f "$framework_loader" ]]; then
-      command -v git >/dev/null 2>&1 || { wwc_log ERROR 'git is required to download the shared installer framework'; return 1; }
-      mkdir -p "${framework_cache%/*}"
-      framework_tmp="$(mktemp -d "${framework_cache%/*}/.framework-${framework_key}.XXXXXX")"
-      wwc_log INFO "cloning shared installer framework ref $framework_ref for standalone installation"
-      if ! GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --single-branch \
-        --branch "$framework_ref" \
-        https://github.com/mikaeltorni/linux_installation_scripts_functions.git \
-        "$framework_tmp/repository"; then
-        wwc_log ERROR 'could not clone the shared installer framework; check GitHub access'
-        return 1
-      fi
-      if [[ ! -e "$framework_cache" ]] && mv "$framework_tmp/repository" "$framework_cache"; then
-        rmdir "$framework_tmp" 2>/dev/null || true
-      else
-        framework_loader="$framework_tmp/repository/component_loader.sh"
-      fi
-    fi
-    ISC_FUNCTIONS_DIR="${framework_loader%/*}"
-    export ISC_FUNCTIONS_DIR
-    source "$framework_loader"
-  fi
-  isc_activate_components
-}
+source "$SCRIPT_DIR/lib/window_count_setup.sh"
+source "$SCRIPT_DIR/installer/components.sh"
+source "$SCRIPT_DIR/lib/component_runtime.sh"
 
 # main: Deploy the extension core unconditionally, then route optional settings
-# through the shared component framework.
+# through the repository-local component runtime.
 # Arguments: $@ - forwarded to component_main.
 # Returns: the exit status of component_main.
 main() {
   msg "=== Linux Taskbar Window Count Setup ==="
 
-  # Load component framework and manifest before calling component_main
-  load_component_framework
-  source "$SCRIPT_DIR/installer/components.sh"
-  source "$SCRIPT_DIR/lib/window_count_setup.sh"
   if [ -z "${ISC_COMPONENTS:-}" ]; then
     echo "ERROR: ISC_COMPONENTS manifest is not defined." >&2
     exit 1
@@ -114,25 +73,24 @@ main() {
   component_main "$@"
 }
 
-# Framework listing, reporting, and uninstall commands bypass the unconditional
-# core deploy so machine-readable output stays clean and removals stay narrow.
-case "${1:-}" in
-  --export-selection)
-    # The standalone config exporter reads optional monitor-selection state,
-    # which the framework initializes only when its interactive menu is loaded.
-    declare -gA CM_COMP_MONITOR
-    ;;
-esac
-
-case "${1:-}" in
-  --list-components|--export-selection|--detect|--help|-h|--uninstall|--uninstall=*)
-    load_component_framework
-    source "$SCRIPT_DIR/lib/window_count_setup.sh"
-    source "$SCRIPT_DIR/installer/components.sh"
-    component_main "$@"
-    exit $?
-    ;;
-esac
+# Read-only, help, and uninstall commands bypass the unconditional core deploy.
+# Check every argument so combinations such as --config NAME --export-selection
+# remain side-effect free as well.
+READONLY_COMMAND=0
+for arg in "$@"; do
+  case "$arg" in
+    --list-components|--list-configurable-components|--list-select-configure-components|\
+    --list-component-config-values|--export-selection|--detect|--help|-h|\
+    --configure-component|--configure-component=*|--uninstall|--uninstall=*)
+      READONLY_COMMAND=1
+      break
+      ;;
+  esac
+done
+if [[ "$READONLY_COMMAND" == "1" ]]; then
+  component_main "$@"
+  exit $?
+fi
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"

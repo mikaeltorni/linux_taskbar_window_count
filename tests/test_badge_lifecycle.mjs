@@ -201,6 +201,31 @@ test('vertical panels use bottom-left while horizontal and custom positions stay
   assert.deepEqual(badge.positions, [[0, 22]]);
 });
 
+test('Ubuntu Dock uses the enclosing dash orientation and reads it live', () => {
+  const fixture = createFixture();
+  const dash = { _isHorizontal: false };
+  const dashBox = { _delegate: dash, get_parent: () => null };
+  const item = { get_parent: () => dashBox };
+  fixture.icon.get_parent = () => item;
+
+  const badge = ensureBadge(
+    fixture.delegate,
+    fixture.badges,
+    fixture.createLabel,
+    () => {},
+    () => resolveBadgePosition('bottom-right', fixture.delegate)
+  );
+  assert.deepEqual(badge.positions, [[0, 22]]);
+  assert.equal(resolveBadgePosition('top-right', fixture.delegate), 'top-right');
+
+  dash._isHorizontal = true;
+  badge._wwcReposition();
+  assert.deepEqual(badge.positions.at(-1), [32, 22]);
+
+  delete dash._isHorizontal;
+  assert.equal(resolveBadgePosition('bottom-right', fixture.delegate), 'bottom-right');
+});
+
 test('applyBadgeStyle sets an inline style from the config', () => {
   const fixture = createFixture();
   const badge = ensureBadge(

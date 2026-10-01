@@ -3,7 +3,7 @@
 #
 # install.sh deploys the extension core (install_window_count_extension)
 # unconditionally so the window-count badge always works, then routes execution
-# through component_main from the shared component runtime. Each component below
+# through component_main from this repository's local runtime. Each component below
 # writes one (or a few related) gsettings key(s) on the bundled schema, so every
 # customizable behavior is selectable and fully editable without touching the
 # extension source. All components are default-on: a plain install reproduces the

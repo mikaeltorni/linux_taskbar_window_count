@@ -38,7 +38,7 @@ assert_file_exists() {
 # Returns: 0 always (records the result in the global counters).
 assert_file_contains() {
   local path="$1" needle="$2" message="$3"
-  if grep -Fq "$needle" "$path"; then
+  if grep -Fq -- "$needle" "$path"; then
     PASS=$((PASS + 1))
   else
     FAIL=$((FAIL + 1))
@@ -167,6 +167,38 @@ assert_file_contains "$LOGGER_DIR/install.log" "[ERROR] build logger error probe
 
 chmod +x "$BIN_DIR/getent" "$BIN_DIR/sudo" "$BIN_DIR/gsettings"
 printf "['app-rules@local']\n" >"$STATE_FILE"
+
+# A clean standalone checkout must install without locating or downloading the
+# private shared component framework. Keep HOME and cache paths isolated, and
+# fail the regression if the installer attempts any Git operation.
+STANDALONE_HOME="$TMP_DIR/standalone-home"
+STANDALONE_STATE="$TMP_DIR/standalone-state"
+GIT_CALL_LOG="$TMP_DIR/standalone-git.log"
+mkdir -p "$STANDALONE_HOME"
+cat >"$BIN_DIR/git" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GIT_CALL_LOG"
+exit 81
+EOF
+chmod +x "$BIN_DIR/git"
+if ! PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 \
+  HOME="$STANDALONE_HOME" XDG_CACHE_HOME="$STANDALONE_HOME/.cache" \
+  XDG_STATE_HOME="$STANDALONE_STATE" ISC_FUNCTIONS_DIR= \
+  GIT_CALL_LOG="$GIT_CALL_LOG" bash "$REPO_ROOT/install.sh" --auth --all \
+  >"$TMP_DIR/standalone.out" 2>"$TMP_DIR/standalone.err"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: standalone installation should not require the shared component framework"
+  cat "$TMP_DIR/standalone.out" "$TMP_DIR/standalone.err" >&2
+else
+  PASS=$((PASS + 1))
+fi
+assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "Standalone installation should deploy the extension without the private framework"
+if [ -s "$GIT_CALL_LOG" ]; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: standalone installation should not fetch the private shared framework"
+else
+  PASS=$((PASS + 1))
+fi
 
 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-1.out" 2>"$TMP_DIR/install-1.err" || FAIL=$((FAIL + 1))
 
@@ -301,30 +333,14 @@ mkdir -p "$LIFECYCLE_HOME"
 } >"$BIN_DIR/getent"
 chmod +x "$BIN_DIR/getent"
 
-# The sandbox HOME hides install.sh's ~/projects fallback for the shared
-# framework, and the sibling checkout only exists next to the live checkout (not
-# next to a git worktree), so resolve it here instead of letting the loader
-# reach the network.
-for candidate in "${ISC_FUNCTIONS_DIR:-}" \
-                 "$REPO_ROOT/../linux_installation_scripts_functions" \
-                 "$REPO_ROOT/../../linux_installation_scripts_functions" \
-                 "$HOME/projects/linux_installation_scripts_functions"; do
-  [ -n "$candidate" ] || continue
-  if [ -f "$candidate/component_loader.sh" ]; then
-    LIFECYCLE_ISC_DIR="$(cd "$candidate" && pwd)"
-    break
-  fi
-done
-
 run_lifecycle() {
   PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$LIFECYCLE_HOME" \
-    ISC_FUNCTIONS_DIR="${LIFECYCLE_ISC_DIR:-}" \
+    ISC_FUNCTIONS_DIR= GIT_CALL_LOG="$TMP_DIR/lifecycle-git.log" \
     XDG_STATE_HOME="$LIFECYCLE_HOME/.local/state" \
     bash "$REPO_ROOT/install.sh" "$@"
 }
 
-# The standalone config exporter runs without loading the interactive menu,
-# where the framework normally initializes optional monitor-selection state.
+# The standalone config exporter must remain side-effect free.
 : >"$SET_LOG"
 if ! run_lifecycle --export-selection >"$TMP_DIR/export-selection.json" 2>"$TMP_DIR/export-selection.err"; then
   FAIL=$((FAIL + 1))
@@ -359,6 +375,92 @@ else
   PASS=$((PASS + 1))
 fi
 
+if ! run_lifecycle --config empty --export-selection >"$TMP_DIR/export-empty.json" 2>"$TMP_DIR/export-empty.err"; then
+  FAIL=$((FAIL + 1))
+  cat "$TMP_DIR/export-empty.err" >&2
+elif python3 - "$TMP_DIR/export-empty.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    document = json.load(stream)
+assert set(document["components"]) == {
+    "badge_position",
+    "badge_appearance",
+    "count_threshold",
+    "workspace_scope",
+}
+assert all(values["on"] == 0 for values in document["components"].values())
+PY
+then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: --config empty --export-selection should return an empty selection"
+  cat "$TMP_DIR/export-empty.json" >&2
+fi
+
+: >"$SET_LOG"
+if ! run_lifecycle --config empty >"$TMP_DIR/install-empty.out" 2>"$TMP_DIR/install-empty.err"; then
+  FAIL=$((FAIL + 1))
+  cat "$TMP_DIR/install-empty.out" "$TMP_DIR/install-empty.err" >&2
+elif grep -Fq "org.gnome.shell.extensions.workspace-window-count" "$SET_LOG"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: --config empty should deploy the core without applying component settings"
+else
+  PASS=$((PASS + 1))
+fi
+
+if ! run_lifecycle --help >"$TMP_DIR/help.out" 2>"$TMP_DIR/help.err"; then
+  FAIL=$((FAIL + 1))
+  cat "$TMP_DIR/help.err" >&2
+else
+  assert_file_contains "$TMP_DIR/help.out" "--reconfigure a,b,c" "--help should document reconfiguration"
+  assert_file_contains "$TMP_DIR/help.out" "--export-selection" "--help should document selection export"
+fi
+for OPTION in --list-configurable-components --list-select-configure-components --list-component-config-values; do
+  if ! run_lifecycle "$OPTION" >"$TMP_DIR/${OPTION#--}.out" 2>"$TMP_DIR/${OPTION#--}.err"; then
+    FAIL=$((FAIL + 1))
+    cat "$TMP_DIR/${OPTION#--}.err" >&2
+  elif [ -s "$TMP_DIR/${OPTION#--}.out" ]; then
+    FAIL=$((FAIL + 1))
+    echo "FAIL: $OPTION should be empty because no component has a nested config screen"
+  else
+    PASS=$((PASS + 1))
+  fi
+done
+if run_lifecycle --configure-component badge_position >"$TMP_DIR/configure.out" 2>"$TMP_DIR/configure.err"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: --configure-component should report that no nested screen is defined"
+else
+  CONFIGURE_STATUS=$?
+  assert_eq "2" "$CONFIGURE_STATUS" "--configure-component should return usage status when no screen exists"
+fi
+if run_lifecycle --select component_does_not_exist >"$TMP_DIR/invalid-selection.out" 2>"$TMP_DIR/invalid-selection.err"; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: --select should reject an unknown component ID"
+else
+  SELECTION_STATUS=$?
+  assert_eq "2" "$SELECTION_STATUS" "--select should return usage status for an unknown component ID"
+fi
+
+if command -v script >/dev/null 2>&1; then
+  : >"$SET_LOG"
+  if ! printf '\n\n' | env PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" \
+    DISPLAY=:99 HOME="$LIFECYCLE_HOME" XDG_STATE_HOME="$TMP_DIR/interactive-state" \
+    ISC_FUNCTIONS_DIR= GIT_CALL_LOG="$TMP_DIR/lifecycle-git.log" \
+    script -q -e -c "bash \"$REPO_ROOT/install.sh\"" /dev/null \
+    >"$TMP_DIR/interactive.out" 2>"$TMP_DIR/interactive.err"; then
+    FAIL=$((FAIL + 1))
+    echo "FAIL: interactive install should accept the default component selection"
+    cat "$TMP_DIR/interactive.out" "$TMP_DIR/interactive.err" >&2
+  else
+    PASS=$((PASS + 1))
+  fi
+  assert_file_contains "$SET_LOG" "badge-position" "Interactive default selection should apply badge position"
+  assert_file_contains "$SET_LOG" "count-threshold" "Interactive default selection should apply count threshold"
+fi
+
 run_lifecycle --detect >"$TMP_DIR/detect-before.out" 2>/dev/null || FAIL=$((FAIL + 1))
 if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-before.out"; then
   FAIL=$((FAIL + 1)); echo "FAIL: a knob must not report installed before any run"
@@ -367,6 +469,9 @@ else
 fi
 
 run_lifecycle --default >"$TMP_DIR/lifecycle-install.out" 2>/dev/null || FAIL=$((FAIL + 1))
+: >"$SET_LOG"
+WWC_COUNT_THRESHOLD=4 run_lifecycle --reconfigure count_threshold >"$TMP_DIR/reconfigure.out" 2>/dev/null || FAIL=$((FAIL + 1))
+assert_file_contains "$SET_LOG" $'count-threshold\t4' "--reconfigure should reapply the selected component settings"
 run_lifecycle --detect >"$TMP_DIR/detect-after.out" 2>/dev/null || FAIL=$((FAIL + 1))
 if grep -Eq '^badge_position[[:space:]]+installed' "$TMP_DIR/detect-after.out"; then
   PASS=$((PASS + 1))
@@ -385,6 +490,12 @@ if grep -Eq '^count_threshold[[:space:]]+installed' "$TMP_DIR/detect-removed.out
   PASS=$((PASS + 1))
 else
   FAIL=$((FAIL + 1)); echo "FAIL: uninstalling one knob must not drop the others"
+fi
+if [ -e "$TMP_DIR/lifecycle-git.log" ]; then
+  FAIL=$((FAIL + 1))
+  echo "FAIL: component lifecycle commands must not fetch the private shared framework"
+else
+  PASS=$((PASS + 1))
 fi
 
 echo ""

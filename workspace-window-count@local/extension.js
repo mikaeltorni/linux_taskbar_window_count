@@ -10,15 +10,19 @@ import {
   iterAppIconDelegates,
   resolveIconMonitorIndex,
 } from './windowDiscovery.js';
-import { applyBadgeStyle, destroyBadge, ensureBadge } from './badgeLifecycle.js';
+import {
+  applyBadgeStyle,
+  destroyBadge,
+  ensureBadge,
+  resolveBadgePosition,
+} from './badgeLifecycle.js';
 
 // extension.js — workspace-window-count@local
 //
-// Draws a small badge in the BOTTOM-RIGHT corner of every taskbar app icon
-// (e.g. Dash to Panel) showing how many windows of that app are open on the
-// CURRENT workspace on THAT MONITOR. Bottom-right is deliberately chosen so
-// the badge never overlaps notification counters, which live in the top-right
-// corner.
+// Draws a small badge on every taskbar app icon (e.g. Dash to Panel), showing
+// how many windows of that app are open on the CURRENT workspace on THAT
+// MONITOR. The default is bottom-right on horizontal panels and bottom-left on
+// vertical panels; both avoid notification counters at the top-right.
 //
 // Components:
 //   - log()                          Centralized, level-aware logging helper.
@@ -310,7 +314,7 @@ export default class WorkspaceWindowCountExtension extends Extension {
           this._badges,
           createBadgeLabel,
           log,
-          () => this._config.position
+          () => resolveBadgePosition(this._config.position, delegate)
         );
         if (!badge) {
           continue;

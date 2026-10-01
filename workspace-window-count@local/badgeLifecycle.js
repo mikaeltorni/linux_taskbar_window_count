@@ -6,6 +6,46 @@ const BADGE_KEY = '_wwcBadge';
 const RIGHT_NUDGE_PX = 4;
 
 /**
+ * Resolve the configured corner against the orientation of the icon's panel.
+ *
+ * Dash to Panel app icons expose their panel directly through `dtpPanel`; the
+ * panel orientation is queried live so horizontal panels keep their configured
+ * corner while the default bottom-right placement moves to bottom-left on a
+ * vertical panel. Explicit non-default corner choices remain unchanged.
+ *
+ * @param {string} position - Configured badge corner.
+ * @param {object} delegate - App-icon delegate, optionally carrying a panel.
+ * @returns {string} Effective badge corner for this panel.
+ */
+export function resolveBadgePosition(position, delegate) {
+  const panel = delegate?.dtpPanel ?? delegate?._dtpPanel;
+  let orientation;
+  try {
+    orientation = panel?.getOrientation?.();
+  } catch {
+    orientation = undefined;
+  }
+
+  if (typeof orientation === 'string') {
+    orientation = orientation.toLowerCase();
+    if (orientation !== 'vertical' && orientation !== 'horizontal') {
+      orientation = undefined;
+    }
+  }
+  if (
+    !orientation &&
+    typeof panel?.geom?.vertical === 'boolean'
+  ) {
+    orientation = panel.geom.vertical ? 'vertical' : 'horizontal';
+  }
+
+  if (position === 'bottom-right' && orientation === 'vertical') {
+    return 'bottom-left';
+  }
+  return position;
+}
+
+/**
  * Return the badge for a delegate, creating, attaching, and positioning one
  * when necessary.
  *

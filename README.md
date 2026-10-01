@@ -37,9 +37,6 @@ that repository is private, so direct installation requires an existing sibling
 checkout or authorized GitHub access. Without either, the installer stops
 before deployment.
 
-See the full cross-repository map in
-[installation_scripts/DEPENDENCIES.md](https://github.com/mikaeltorni/installation_scripts/blob/master/DEPENDENCIES.md).
-
 ## Install the GNOME Shell window-count extension
 
 Run this repository's installer as the desktop user. This user-level install

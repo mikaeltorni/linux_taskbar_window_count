@@ -58,7 +58,13 @@ _wwc_receipt_directory() {
     printf '%s/%s' "$ISC_RECEIPT_DIR" "${ISC_REPO_NAME:-installer}"
     return 0
   fi
-  state_home="${XDG_STATE_HOME:-${TARGET_HOME:-$HOME}/.local/state}"
+  if [[ "$(id -u)" != "${TARGET_UID:-$(id -u)}" ]]; then
+    # sudo's XDG_STATE_HOME may belong to root; target state must stay writable
+    # by the desktop account when a later installer run is unprivileged.
+    state_home="${TARGET_HOME:?}/.local/state"
+  else
+    state_home="${XDG_STATE_HOME:-${TARGET_HOME:-$HOME}/.local/state}"
+  fi
   printf '%s/isc/receipts/%s' "$state_home" "${ISC_REPO_NAME:-installer}"
 }
 
@@ -82,9 +88,11 @@ _wwc_component_installed() {
 _wwc_mark_installed() {
   local id="$1" receipt_dir
   receipt_dir="$(_wwc_receipt_directory)"
-  if mkdir -p "$receipt_dir" 2>/dev/null; then
-    printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)" \
-      >"$receipt_dir/$id" 2>/dev/null || true
+  if run_as_target mkdir -p "$receipt_dir" 2>/dev/null; then
+    if ! printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)" | \
+      run_as_target tee "$receipt_dir/$id" >/dev/null 2>&1; then
+      wwc_log WARNING "Could not write component receipt $receipt_dir/$id"
+    fi
   else
     wwc_log WARNING "Could not create component receipt directory $receipt_dir"
   fi
@@ -96,7 +104,7 @@ _wwc_mark_installed() {
 _wwc_clear_receipt() {
   local receipt_dir
   receipt_dir="$(_wwc_receipt_directory)"
-  rm -f "$receipt_dir/$1" 2>/dev/null || true
+  run_as_target rm -f "$receipt_dir/$1" 2>/dev/null || true
 }
 
 # _wwc_config_file: Resolve a config name to a file in installation_configs.

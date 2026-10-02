@@ -109,6 +109,9 @@ while (($#)); do
       ;;
   esac
 done
+if [[ -n "${WWC_TEST_SUDO_LOG:-}" ]]; then
+  printf '%s\n' "${args[*]}" >>"$WWC_TEST_SUDO_LOG"
+fi
 exec "${args[@]}"
 EOF
 cat >"$BIN_DIR/gsettings" <<'EOF'
@@ -555,7 +558,7 @@ run_cli_case() {
   CLI_CASE_STATUS=0
   env PATH="$BIN_DIR:$PATH" CLI_CASE_HOME="$CLI_CASE_HOME" \
     SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$CLI_CASE_HOME" \
-    XDG_STATE_HOME="$CLI_CASE_HOME/.local/state" \
+    XDG_STATE_HOME="${CLI_CASE_STATE_HOME:-$CLI_CASE_HOME/.local/state}" \
     bash "${CLI_CASE_REPO_ROOT:-$REPO_ROOT}/install.sh" "$@" >"$TMP_DIR/cli-$name.out" \
     2>"$TMP_DIR/cli-$name.err" || CLI_CASE_STATUS=$?
 }
@@ -692,6 +695,38 @@ for config in invalid-root invalid-components invalid-component-id; do
     fi
   done
 done
+
+# Simulate only the root caller boundary. All actual fixture writes remain
+# unprivileged, and mocked sudo records whether the target-user route is used.
+cat >"$BIN_DIR/id" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${WWC_TEST_ROOT_CALLER:-0}" == "1" && "${1:-}" == "-u" ]]; then
+  if [[ -n "${2:-}" ]]; then printf '1000\n'; else printf '0\n'; fi
+  exit 0
+fi
+exec /usr/bin/id "$@"
+EOF
+chmod +x "$BIN_DIR/id"
+RECEIPT_SUDO_LOG="$TMP_DIR/receipt-sudo.log"
+: >"$RECEIPT_SUDO_LOG"
+CLI_CASE_STATE_HOME="$TMP_DIR/root-state" WWC_TEST_ROOT_CALLER=1 \
+  WWC_TEST_SUDO_LOG="$RECEIPT_SUDO_LOG" WWC_BIN="$REPO_ROOT/dist/wwc-tools" \
+  run_cli_case root-receipt --select count_threshold
+assert_eq "0" "$CLI_CASE_STATUS" "Root installer fixture should succeed"
+RECEIPT_CASE_DIR="$CLI_CASE_HOME/.local/state/isc/receipts/linux_taskbar_window_count"
+assert_file_exists "$RECEIPT_CASE_DIR/count_threshold" "Sudo installs must put receipts in the desktop user's state directory"
+assert_file_contains "$RECEIPT_SUDO_LOG" "mkdir -p $RECEIPT_CASE_DIR" "Receipt directories must be created through run_as_target"
+assert_file_contains "$RECEIPT_SUDO_LOG" "tee $RECEIPT_CASE_DIR/count_threshold" "Receipts must be written through run_as_target"
+CLI_CASE_STATE_HOME="$TMP_DIR/root-state" WWC_TEST_ROOT_CALLER=1 \
+  WWC_TEST_SUDO_LOG="$RECEIPT_SUDO_LOG" WWC_BIN="$REPO_ROOT/dist/wwc-tools" \
+  run_cli_case root-receipt --uninstall count_threshold
+assert_eq "0" "$CLI_CASE_STATUS" "Root uninstall fixture should succeed"
+assert_file_contains "$RECEIPT_SUDO_LOG" "rm -f $RECEIPT_CASE_DIR/count_threshold" "Receipt removal must use the target-user route"
+if [[ -e "$RECEIPT_CASE_DIR/count_threshold" ]]; then
+  FAIL=$((FAIL + 1)); echo "FAIL: uninstall should remove the desktop user's receipt"
+else
+  PASS=$((PASS + 1))
+fi
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

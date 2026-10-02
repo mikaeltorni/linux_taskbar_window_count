@@ -67,17 +67,31 @@ export default class WorkspaceWindowCountPreferences extends ExtensionPreference
 
     const positionRow = new Adw.ComboRow({
       title: _('Badge position'),
-      subtitle: _('Corner of each app icon the badge is drawn in.'),
+      subtitle: _('Bottom right adapts to bottom left on vertical panels.'),
       model: Gtk.StringList.new(POSITION_CHOICES.map(([, label]) => label)),
     });
-    positionRow.selected = Math.max(
-      0,
-      POSITION_CHOICES.findIndex(
-        ([nick]) => nick === settings.get_string('badge-position')
-      )
-    );
+    const syncPosition = () => {
+      positionRow.selected = Math.max(
+        0,
+        POSITION_CHOICES.findIndex(
+          ([nick]) => nick === settings.get_string('badge-position')
+        )
+      );
+    };
+    // Connect before reading: GSettings only emits changed for observed keys.
+    let positionChangedId = settings.connect('changed::badge-position', syncPosition);
+    syncPosition();
     positionRow.connect('notify::selected', row => {
-      settings.set_string('badge-position', POSITION_CHOICES[row.selected][0]);
+      const nick = POSITION_CHOICES[row.selected]?.[0];
+      if (nick && nick !== settings.get_string('badge-position')) {
+        settings.set_string('badge-position', nick);
+      }
+    });
+    positionRow.connect('destroy', () => {
+      if (positionChangedId) {
+        settings.disconnect(positionChangedId);
+        positionChangedId = 0;
+      }
     });
     group.add(positionRow);
 

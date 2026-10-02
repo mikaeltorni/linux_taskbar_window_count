@@ -84,7 +84,11 @@ run_as_target() {
 append_gsettings_list() {
   local schema="$1" key="$2" value="$3" current newlist
   wwc_log_call ENTER append_gsettings_list "schema=$schema key=$key"
-  current="$(run_as_target gsettings get "$schema" "$key" 2>/dev/null || echo "[]")"
+  if ! current="$(run_as_target gsettings get "$schema" "$key" 2>/dev/null)"; then
+    wwc_log ERROR "Could not read GSettings string-array $schema $key; preserving existing state"
+    wwc_log_call EXIT append_gsettings_list "status=1 skipped=read_failure"
+    return 1
+  fi
   wwc_log DEBUG "Read current GSettings string-array for $schema $key"
   newlist="$(CURRENT="$current" wwc_bin "$value")"
   if run_as_target gsettings set "$schema" "$key" "$newlist"; then

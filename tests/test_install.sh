@@ -126,6 +126,9 @@ if [[ "${args[0]:-}" == "--schemadir" ]]; then
   args=("${args[@]:2}")
 fi
 op="${args[0]:-}" schema="${args[1]:-}" key="${args[2]:-}" value="${args[3]:-}"
+if [[ "${GSETTINGS_FAIL_GET:-0}" == "1" && "$op" == "get" ]]; then
+  exit 1
+fi
 if [[ "${GSETTINGS_FAIL_SET:-0}" == "1" && "$op" == "set" ]]; then
   exit 1
 fi
@@ -255,6 +258,22 @@ assert_eq "1" "$WWC_OCCURRENCES" "Re-running should not duplicate the enabled en
 
 GSETTINGS_FAIL_SET=1 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-gsettings-fail.out" 2>"$TMP_DIR/install-gsettings-fail.err" || FAIL=$((FAIL + 1))
 assert_file_contains "$TMP_DIR/install-gsettings-fail.out" "WARN: Could not update GNOME enabled-extensions" "GSettings enable failure should be visible without aborting install"
+
+# A failed read must preserve the entire enabled list, even when writes work.
+printf "['app-rules@local', 'another-extension@local']\n" >"$STATE_FILE"
+: >"$SET_LOG"
+GSETTINGS_FAIL_GET=1 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 \
+  bash "$REPO_ROOT/install.sh" --select "" >"$TMP_DIR/install-read-fail.out" \
+  2>"$TMP_DIR/install-read-fail.err" || FAIL=$((FAIL + 1))
+assert_eq "['app-rules@local', 'another-extension@local']" "$(cat "$STATE_FILE")" \
+  "Failed enabled-extension reads must preserve the existing list"
+if grep -Fq $'org.gnome.shell\tenabled-extensions\t' "$SET_LOG"; then
+  FAIL=$((FAIL + 1)); echo "FAIL: a failed settings read must never write enabled-extensions"
+else
+  PASS=$((PASS + 1))
+fi
+assert_file_contains "$TMP_DIR/install-read-fail.out" "WARN: Could not update GNOME enabled-extensions" \
+  "A skipped enable after a failed read should remain visible"
 
 # --list-components must be side-effect free (the master installer parses it):
 # it should print the component manifest and deploy nothing into a fresh home.

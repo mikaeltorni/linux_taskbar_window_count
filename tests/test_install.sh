@@ -556,7 +556,7 @@ run_cli_case() {
   env PATH="$BIN_DIR:$PATH" CLI_CASE_HOME="$CLI_CASE_HOME" \
     SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$CLI_CASE_HOME" \
     XDG_STATE_HOME="$CLI_CASE_HOME/.local/state" \
-    bash "$REPO_ROOT/install.sh" "$@" >"$TMP_DIR/cli-$name.out" \
+    bash "${CLI_CASE_REPO_ROOT:-$REPO_ROOT}/install.sh" "$@" >"$TMP_DIR/cli-$name.out" \
     2>"$TMP_DIR/cli-$name.err" || CLI_CASE_STATUS=$?
 }
 
@@ -633,6 +633,65 @@ if command -v script >/dev/null 2>&1; then
   fi
   assert_cli_unchanged "Cancelled selection"
 fi
+
+# Saved selection fixtures use a separate repository copy: never create or
+# overwrite config files in the user's checkout.
+CONFIG_CASE_REPO="$TMP_DIR/config-repo"
+mkdir -p "$CONFIG_CASE_REPO"
+cp -a "$REPO_ROOT/install.sh" "$REPO_ROOT/lib" "$REPO_ROOT/installer" \
+  "$REPO_ROOT/installation_configs" "$REPO_ROOT/workspace-window-count@local" \
+  "$CONFIG_CASE_REPO/"
+printf '%s\n' '{"components":{"badge_position":{"on":"0","favorite":"false"},"count_threshold":{"on":"off"},"workspace_scope":{"on":"false"},"badge_appearance":{"on":true}}}' \
+  >"$CONFIG_CASE_REPO/installation_configs/flag-values.json"
+printf '%s\n' '{"components":{"badge_position":{"on":"on"},"count_threshold":{"on":"1"},"workspace_scope":{"on":"true"},"badge_appearance":{"on":0}}}' \
+  >"$CONFIG_CASE_REPO/installation_configs/enabled-values.json"
+printf '%s\n' '[]' >"$CONFIG_CASE_REPO/installation_configs/invalid-root.json"
+printf '%s\n' '{"components":[]}' >"$CONFIG_CASE_REPO/installation_configs/invalid-components.json"
+printf '%s\n' '{"components":{"component_does_not_exist":{"on":1}}}' \
+  >"$CONFIG_CASE_REPO/installation_configs/invalid-component-id.json"
+for config in flag-values enabled-values; do
+  CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" run_cli_case "flags-$config" --config "$config" --export-selection
+  assert_eq "0" "$CLI_CASE_STATUS" "Export should accept supported flag values"
+  assert_cli_unchanged "Flag export $config"
+  if python3 - "$TMP_DIR/cli-flags-$config.out" "$config" <<'PYCASE'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    components = json.load(stream)["components"]
+expected = {"badge_position": 0, "count_threshold": 0, "workspace_scope": 0, "badge_appearance": 1}
+if sys.argv[2] == "enabled-values":
+    expected = {name: 1 - value for name, value in expected.items()}
+assert {name: fields["on"] for name, fields in components.items()} == expected
+assert components["badge_position"]["favorite"] == 0
+PYCASE
+  then PASS=$((PASS + 1)); else FAIL=$((FAIL + 1)); echo "FAIL: flag normalization must agree with installation"; fi
+done
+CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" WWC_BIN="$REPO_ROOT/dist/wwc-tools" \
+  run_cli_case flags-install --config flag-values
+assert_eq "0" "$CLI_CASE_STATUS" "Installation should use the same normalized flags"
+assert_file_contains "$SET_LOG" $'badge-font-size\t18' "The enabled appearance component should run"
+if grep -Eq $'\t(badge-position|count-threshold|count-all-workspaces)\t' "$SET_LOG"; then
+  FAIL=$((FAIL + 1)); echo "FAIL: saved false flags must not apply disabled components"
+else
+  PASS=$((PASS + 1))
+fi
+for config in invalid-root invalid-components invalid-component-id; do
+  for operation in install export; do
+    args=(--config "$config")
+    [[ "$operation" == "export" ]] && args+=(--export-selection)
+    CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" run_cli_case "$config-$operation" "${args[@]}"
+    if [[ "$CLI_CASE_STATUS" == "0" ]]; then
+      FAIL=$((FAIL + 1)); echo "FAIL: $config should fail during $operation"
+    else
+      PASS=$((PASS + 1))
+    fi
+    assert_cli_unchanged "$config $operation"
+    if grep -Fq 'Traceback' "$TMP_DIR/cli-$config-$operation.err"; then
+      FAIL=$((FAIL + 1)); echo "FAIL: invalid configs should produce a concise diagnostic"
+    else
+      PASS=$((PASS + 1))
+    fi
+  done
+done
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

@@ -120,21 +120,7 @@ _wwc_config_component_ids() {
     msg "ERROR: installation config '$1' was not found under installation_configs/" >&2
     return 1
   }
-  python3 - "$config_path" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as stream:
-    document = json.load(stream)
-components = document.get("components", {})
-if not isinstance(components, dict):
-    raise SystemExit("installation config 'components' must be an object")
-for component_id, values in components.items():
-    if not isinstance(values, dict):
-        raise SystemExit(f"installation config for {component_id!r} must be an object")
-    if values.get("on", 0) in (1, True, "1", "true", "on"):
-        print(component_id)
-PY
+  _wwc_selection_config selected "$config_path"
 }
 
 # _wwc_list_components: Emit the machine-readable component manifest.
@@ -158,7 +144,7 @@ _wwc_list_components() {
 # Arguments: $1 - config name or empty; $2 - 1 when config was explicit.
 # Returns: 0 on valid input, 1 on missing or malformed config.
 _wwc_export_selection() {
-  local config_path="" entry id label default install detect uninstall section requires
+  local config_path=""
   local explicit="$2"
   if [[ "$explicit" == "1" ]]; then
     config_path="$(_wwc_config_file "$1")" || {
@@ -166,40 +152,21 @@ _wwc_export_selection() {
       return 1
     }
   fi
+  _wwc_selection_config export "$config_path"
+}
+
+# _wwc_selection_config: Resolve selected IDs or JSON through the shared parser.
+# Arguments: $1 - selected or export; $2 - config path (empty uses defaults).
+# Returns: the parser status.
+_wwc_selection_config() {
+  local entry id label default rest
   local -a manifest=()
   for entry in "${ISC_COMPONENTS[@]}"; do
-    IFS='|' read -r id label default install detect uninstall section requires <<<"$entry"
+    IFS='|' read -r id label default rest <<<"$entry"
     manifest+=("$id=$([[ "$default" == "on" ]] && printf 1 || printf 0)")
   done
-  python3 - "${ISC_REPO_NAME:-linux_taskbar_window_count}" "$config_path" "$explicit" "${manifest[@]}" <<'PY'
-import json
-import sys
-
-repo, config_path, explicit, *defaults = sys.argv[1:]
-config = {}
-if explicit == "1":
-    with open(config_path, encoding="utf-8") as stream:
-        config = json.load(stream).get("components", {})
-
-components = {}
-for pair in defaults:
-    component_id, default_on = pair.rsplit("=", 1)
-    values = config.get(component_id, {}) if explicit == "1" else {}
-    if not isinstance(values, dict):
-        raise SystemExit(f"installation config for {component_id!r} must be an object")
-    components[component_id] = {
-        "config_value": str(values.get("config_value", "")),
-        "favorite": int(bool(values.get("favorite", 0))),
-        "on": int(bool(values.get("on", default_on if explicit != "1" else 0))),
-        "startup": int(bool(values.get("startup", 0))),
-        "sticky": int(bool(values.get("sticky", 0))),
-        "uninstall": int(bool(values.get("uninstall", 0))),
-        "workspace": int(bool(values.get("workspace", 0))),
-    }
-
-print(json.dumps({"components": components, "repo": repo,
-                  "schema_version": 1, "scope": "standalone"}, indent=2))
-PY
+  python3 "$SCRIPT_DIR/lib/selection_config.py" "$1" \
+    "${ISC_REPO_NAME:-linux_taskbar_window_count}" "$2" "${manifest[@]}"
 }
 
 # _wwc_validate_component_ids: Reject unknown selections before any mutation.
@@ -329,11 +296,10 @@ EOF
 }
 
 # _wwc_interactive_selection: Ask for component IDs in a terminal session.
-# Arguments: $1 - default config name.
+# Arguments: $1 - validated default component IDs.
 # Returns: 0 and sets WWC_SELECTED_IDS / WWC_UNINSTALL_IDS; 1 on cancel/error.
 _wwc_interactive_selection() {
-  local config_name="$1" defaults="" id
-  defaults="$(_wwc_config_component_ids "$config_name")" || return 1
+  local defaults="$1" id
   printf 'Taskbar window-count components:\n'
   _wwc_list_components | while IFS=$'\t' read -r id label default; do
     printf '  %-20s %s\n' "$id" "$label"
@@ -407,15 +373,14 @@ component_main() {
     all) selected_ids="$(_wwc_all_component_ids)" ;;
     select|uninstall) ;;
     *)
+      selected_ids="$(_wwc_config_component_ids "$config_name")" || return 1
       if [[ -t 0 && -t 1 ]]; then
-        if ! _wwc_interactive_selection "$config_name"; then
+        if ! _wwc_interactive_selection "$selected_ids"; then
           msg 'Selection cancelled — nothing changed.'
           return 0
         fi
         selected_ids="$WWC_SELECTED_IDS"
         uninstall_ids="$WWC_UNINSTALL_IDS"
-      else
-        selected_ids="$(_wwc_config_component_ids "$config_name")" || return 1
       fi
       ;;
   esac

@@ -202,6 +202,19 @@ print(json.dumps({"components": components, "repo": repo,
 PY
 }
 
+# _wwc_validate_component_ids: Reject unknown selections before any mutation.
+# Arguments: $1 - comma/space-separated component IDs.
+# Returns: 0 for valid IDs (including an empty selection), 2 otherwise.
+_wwc_validate_component_ids() {
+  local requested="${1//,/ }" token
+  for token in $requested; do
+    if ! _wwc_component_field "$token" 0 >/dev/null; then
+      msg "ERROR: unknown component id '$token'" >&2
+      return 2
+    fi
+  done
+}
+
 # _wwc_run_selected: Apply selected components in manifest order and record them.
 # Arguments: $1 - comma/space-separated IDs; $2 - strict to reject unknown IDs.
 # Returns: 0 when selected functions succeed, otherwise non-zero.
@@ -336,71 +349,88 @@ _wwc_interactive_selection() {
 # Arguments: $@ - command-line arguments passed by install.sh.
 # Returns: the selected operation's status.
 component_main() {
-  local mode="" selected_ids="" config_name="default.json" config_explicit=0 config_consumed=0 arg
+  local mode="" command="" selected_ids="" uninstall_ids=""
+  local config_name="default.json" config_explicit=0 arg
   while (($#)); do
-    if (( config_consumed )); then config_consumed=0; shift; continue; fi
     case "$1" in
-      --list-components) _wwc_list_components; return 0 ;;
-      --list-configurable-components|--list-select-configure-components|--list-component-config-values) return 0 ;;
-      --configure-component)
-        msg "ERROR: this installer has no nested component configuration screens" >&2
-        return 2
+      --list-components|--list-configurable-components|--list-select-configure-components|--list-component-config-values|--detect|--export-selection)
+        command="$1"
         ;;
-      --configure-component=*)
-        msg "ERROR: this installer has no nested component configuration screens" >&2
-        return 2
+      --configure-component|--config|--select|--reconfigure|--uninstall)
+        if [[ $# -lt 2 || "$2" == -* ]]; then
+          msg "ERROR: $1 requires an explicit argument" >&2
+          return 2
+        fi
+        case "$1" in
+          --configure-component) command="--configure-component" ;;
+          --config) config_name="$2"; config_explicit=1 ;;
+          --select|--reconfigure) mode="select"; selected_ids="$2" ;;
+          --uninstall) mode="uninstall"; selected_ids="$2" ;;
+        esac
+        shift
         ;;
-      --detect)
-        while IFS= read -r arg; do
-          [[ -n "$arg" ]] || continue
-          if _wwc_component_installed "$arg"; then printf '%s\tinstalled\n' "$arg"; else printf '%s\tabsent\n' "$arg"; fi
-        done < <(_wwc_all_component_ids)
-        return 0
-        ;;
-      --export-selection)
-        _wwc_export_selection "$config_name" "$config_explicit"
-        return $?
-        ;;
-      --config)
-        [[ $# -ge 2 ]] || { msg 'ERROR: --config requires a name' >&2; return 2; }
-        config_name="$2"; config_explicit=1; config_consumed=1
-        ;;
+      --configure-component=*) command="--configure-component" ;;
       --config=*) config_name="${1#*=}"; config_explicit=1 ;;
       --default) mode="default" ;;
       --all) mode="all" ;;
-      --select) mode="select"; selected_ids="${2:-}"; shift ;;
-      --select=*) mode="select"; selected_ids="${1#*=}" ;;
-      --reconfigure) mode="select"; selected_ids="${2:-}"; shift ;;
-      --reconfigure=*) mode="select"; selected_ids="${1#*=}" ;;
-      --uninstall) mode="uninstall"; selected_ids="${2:-}"; shift ;;
+      --select=*|--reconfigure=*) mode="select"; selected_ids="${1#*=}" ;;
       --uninstall=*) mode="uninstall"; selected_ids="${1#*=}" ;;
       --auth) INSTALLER_AUTH=1; export INSTALLER_AUTH ;;
-      --help|-h) _wwc_print_help; return 0 ;;
-      -*) msg "ERROR: unknown option: $1" >&2; _wwc_print_help >&2; return 2 ;;
-      *) msg "WARN: ignoring unknown argument: $1" ;;
+      --help|-h) command="--help" ;;
+      *) msg "ERROR: unknown argument: $1" >&2; _wwc_print_help >&2; return 2 ;;
     esac
     shift
   done
 
+  # Parse all flags before dispatch so read-only commands honor --config in
+  # either order and invalid input never reaches the desktop deployment.
+  case "$command" in
+    --list-components) _wwc_list_components; return 0 ;;
+    --list-configurable-components|--list-select-configure-components|--list-component-config-values) return 0 ;;
+    --configure-component)
+      msg "ERROR: this installer has no nested component configuration screens" >&2
+      return 2
+      ;;
+    --detect)
+      while IFS= read -r arg; do
+        [[ -n "$arg" ]] || continue
+        if _wwc_component_installed "$arg"; then printf '%s\tinstalled\n' "$arg"; else printf '%s\tabsent\n' "$arg"; fi
+      done < <(_wwc_all_component_ids)
+      return 0
+      ;;
+    --export-selection) _wwc_export_selection "$config_name" "$config_explicit"; return $? ;;
+    --help) _wwc_print_help; return 0 ;;
+  esac
+
   case "$mode" in
-    default) _wwc_run_selected "$(_wwc_default_component_ids)" ;;
-    all) _wwc_run_selected "$(_wwc_all_component_ids)" ;;
-    select) _wwc_run_selected "$selected_ids" strict ;;
-    uninstall) _wwc_uninstall_selected "$selected_ids" ;;
+    default) selected_ids="$(_wwc_default_component_ids)" ;;
+    all) selected_ids="$(_wwc_all_component_ids)" ;;
+    select|uninstall) ;;
     *)
       if [[ -t 0 && -t 1 ]]; then
         if ! _wwc_interactive_selection "$config_name"; then
           msg 'Selection cancelled — nothing changed.'
           return 0
         fi
-        if [[ -n "$WWC_UNINSTALL_IDS" ]]; then
-          _wwc_uninstall_selected "$WWC_UNINSTALL_IDS" || return $?
-        fi
-        _wwc_run_selected "$WWC_SELECTED_IDS"
+        selected_ids="$WWC_SELECTED_IDS"
+        uninstall_ids="$WWC_UNINSTALL_IDS"
       else
         selected_ids="$(_wwc_config_component_ids "$config_name")" || return 1
-        _wwc_run_selected "$selected_ids"
       fi
       ;;
   esac
+  _wwc_validate_component_ids "$selected_ids" || return $?
+  _wwc_validate_component_ids "$uninstall_ids" || return $?
+  if [[ "$mode" == "uninstall" ]]; then
+    _wwc_uninstall_selected "$selected_ids"
+    return $?
+  fi
+
+  msg "=== Linux Taskbar Window Count Setup ==="
+  install_window_count_extension
+  msg "Configuring window-count badge options"
+  if [[ -n "$uninstall_ids" ]]; then
+    _wwc_uninstall_selected "$uninstall_ids" || return $?
+  fi
+  _wwc_run_selected "$selected_ids" strict
 }

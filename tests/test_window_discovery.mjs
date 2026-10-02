@@ -219,6 +219,26 @@ test('resolveIconMonitorIndex prefers the Dash to Panel panel monitor index', ()
   assert.equal(resolveIconMonitorIndex(delegate, createDualMonitorDisplay()), 1);
 });
 
+test('resolveIconMonitorIndex uses the owning panel even when its icon is offscreen', () => {
+  const delegate = {
+    dtpPanel: { monitor: { index: 1 } },
+    monitorIndex: 0,
+    icon: { get_transformed_position: () => [-100, 40] },
+  };
+  assert.equal(resolveIconMonitorIndex(delegate, createDualMonitorDisplay()), 1);
+});
+
+test('resolveIconMonitorIndex preserves the legacy panel and geometry fallbacks', () => {
+  const delegate = {
+    dtpPanel: { monitor: { index: -1 } },
+    _dtpPanel: { monitor: { index: 1 } },
+    icon: { get_transformed_position: () => [10, 40] },
+  };
+  assert.equal(resolveIconMonitorIndex(delegate, createDualMonitorDisplay()), 1);
+  delete delegate._dtpPanel;
+  assert.equal(resolveIconMonitorIndex(delegate, createDualMonitorDisplay()), 0);
+});
+
 test('resolveIconMonitorIndex falls back to actor geometry vs display monitors', () => {
   const delegate = {
     icon: { get_transformed_position: () => [2000, 40] },

@@ -27,6 +27,20 @@ fn cli_formats_updated_array_from_current_environment() {
 }
 
 #[test]
+fn cli_preserves_escaped_existing_values_and_quoted_arguments() {
+    let output = bin()
+        .arg("two words'\\tail")
+        .env("CURRENT", r"@as ['line\nbreak', 'caf\u00e9']")
+        .output()
+        .expect("run wwc-tools");
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "['line\\nbreak', 'café', 'two words\\'\\\\tail']\n"
+    );
+}
+
+#[test]
 fn cli_rejects_wrong_argument_count() {
     let none = bin().output().expect("run wwc-tools");
     assert_eq!(none.status.code(), Some(2));

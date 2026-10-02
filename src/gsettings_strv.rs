@@ -24,7 +24,7 @@ pub fn parse_strv(raw: Option<&str>) -> Vec<String> {
     if value.is_empty() {
         return Vec::new();
     }
-    match pythonish_list(&value) {
+    match string_list(&value) {
         Some(items) => items,
         None => {
             logging::warn("Unparsable GSettings string-array value; using []");
@@ -33,8 +33,8 @@ pub fn parse_strv(raw: Option<&str>) -> Vec<String> {
     }
 }
 
-/// Parse a Python/gsettings list literal like `['a', "b"]` (UTF-8 safe).
-fn pythonish_list(value: &str) -> Option<Vec<String>> {
+/// Parse a GVariant string list like `['a', "b"]` (UTF-8 safe).
+fn string_list(value: &str) -> Option<Vec<String>> {
     let value = value.trim();
     if !value.starts_with('[') || !value.ends_with(']') {
         return None;
@@ -59,8 +59,25 @@ fn pythonish_list(value: &str) -> Option<Vec<String>> {
         let mut closed = false;
         while let Some(c) = chars.next() {
             if c == '\\' {
-                let escaped = chars.next()?;
-                out.push(escaped);
+                match chars.next()? {
+                    'a' => out.push('\u{7}'),
+                    'b' => out.push('\u{8}'),
+                    'f' => out.push('\u{c}'),
+                    'n' => out.push('\n'),
+                    'r' => out.push('\r'),
+                    't' => out.push('\t'),
+                    'v' => out.push('\u{b}'),
+                    escape @ ('u' | 'U') => {
+                        let digits = if escape == 'u' { 4 } else { 8 };
+                        let mut codepoint = 0;
+                        for _ in 0..digits {
+                            codepoint = (codepoint << 4) | chars.next()?.to_digit(16)?;
+                        }
+                        out.push(char::from_u32(codepoint)?);
+                    }
+                    '\n' => {}
+                    escaped => out.push(escaped),
+                }
                 continue;
             }
             if c == quote {
@@ -111,14 +128,35 @@ pub fn append_strv(raw: Option<&str>, value: &str) -> Vec<String> {
     current
 }
 
-/// Serialize values for `gsettings set` (Python `repr` style single quotes).
+/// Serialize values for `gsettings set` with GVariant string escapes.
 ///
 /// # Parameters
 /// - `values`: Normalized string-array entries.
 pub fn format_strv(values: &[String]) -> String {
     let parts: Vec<String> = values
         .iter()
-        .map(|item| format!("'{}'", item.replace('\\', "\\\\").replace('\'', "\\'")))
+        .map(|item| {
+            let mut literal = String::from("'");
+            for character in item.chars() {
+                match character {
+                    '\\' => literal.push_str("\\\\"),
+                    '\'' => literal.push_str("\\'"),
+                    '\u{7}' => literal.push_str("\\a"),
+                    '\u{8}' => literal.push_str("\\b"),
+                    '\u{c}' => literal.push_str("\\f"),
+                    '\n' => literal.push_str("\\n"),
+                    '\r' => literal.push_str("\\r"),
+                    '\t' => literal.push_str("\\t"),
+                    '\u{b}' => literal.push_str("\\v"),
+                    control if control.is_control() => {
+                        literal.push_str(&format!("\\u{:04x}", u32::from(control)));
+                    }
+                    printable => literal.push(printable),
+                }
+            }
+            literal.push('\'');
+            literal
+        })
         .collect();
     format!("[{}]", parts.join(", "))
 }
@@ -191,5 +229,34 @@ mod tests {
         let parsed = parse_strv(Some("@as ['café']"));
         assert_eq!(parsed, vec!["café".to_string()]);
         assert_eq!(format_strv(&parsed), "['café']");
+    }
+
+    #[test]
+    fn gvariant_escapes_preserve_their_values() {
+        let parsed = parse_strv(Some(
+            r"['line\nbreak', 'tab\tend', 'caf\u00e9', 'rocket\U0001f680', 'quote\'end', 'slash\\end']",
+        ));
+        assert_eq!(
+            parsed,
+            vec![
+                "line\nbreak",
+                "tab\tend",
+                "café",
+                "rocket🚀",
+                "quote'end",
+                "slash\\end"
+            ]
+        );
+        assert_eq!(
+            format_strv(&parsed),
+            "['line\\nbreak', 'tab\\tend', 'café', 'rocket🚀', 'quote\\'end', 'slash\\\\end']"
+        );
+    }
+
+    #[test]
+    fn control_escapes_and_continuations_round_trip() {
+        let parsed = parse_strv(Some("['\\a\\b\\f\\r\\v\\u0001', 'one\\\ntwo']"));
+        assert_eq!(parsed, vec!["\u{7}\u{8}\u{c}\r\u{b}\u{1}", "onetwo"]);
+        assert_eq!(format_strv(&parsed), "['\\a\\b\\f\\r\\v\\u0001', 'onetwo']");
     }
 }

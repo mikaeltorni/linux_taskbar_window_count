@@ -72,12 +72,7 @@ if grep -q 'SELECTED_FEATURES="${FEATURES:-}"' "$REPO_ROOT/install.sh"; then
 else
   PASS=$((PASS + 1))
 fi
-if grep -c 'Linux Taskbar Window Count Setup' "$REPO_ROOT/install.sh" | grep -qx 1; then
-  PASS=$((PASS + 1))
-else
-  FAIL=$((FAIL + 1))
-  echo "FAIL: install banner should appear once"
-fi
+
 
 # Ubuntu 24.04 ships Cargo 1.75, which requires lockfile format version 3.
 LOCKFILE_VERSION="$(sed -n 's/^version = //p' "$REPO_ROOT/Cargo.lock" | head -1)"
@@ -205,6 +200,13 @@ fi
 
 : >"$SET_LOG"
 PATH="$BIN_DIR:$PATH" SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 bash "$REPO_ROOT/install.sh" >"$TMP_DIR/install-1.out" 2>"$TMP_DIR/install-1.err" || FAIL=$((FAIL + 1))
+
+if grep -c 'Linux Taskbar Window Count Setup' "$TMP_DIR/install-1.out" | grep -qx 1; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "FAIL: install banner should appear once"
+fi
 
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" "Should deploy extension.js"
 assert_file_exists "$TARGET_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/badgeLifecycle.js" "Should deploy badgeLifecycle.js"
@@ -526,6 +528,110 @@ if [ -e "$TMP_DIR/lifecycle-git.log" ]; then
   echo "FAIL: component lifecycle commands must not fetch the private shared framework"
 else
   PASS=$((PASS + 1))
+fi
+
+# Validate the complete command before deploying into a fresh target. Every
+# case resets settings and uses its own target home and receipt directory.
+cat >"$BIN_DIR/getent" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "passwd" && "${2:-}" == "$TEST_TARGET_USER" ]]; then
+  printf '%s\n' "$CLI_CASE_HOME"
+  exit 0
+fi
+exec /usr/bin/getent "$@"
+EOF
+chmod +x "$BIN_DIR/getent"
+
+# run_cli_case: Execute the public installer with isolated state per case.
+# Arguments: $1 - unique case name; remaining arguments - installer command.
+# Returns: 0; captures the command's status and paths for assertions.
+run_cli_case() {
+  local name="$1"
+  shift
+  CLI_CASE_HOME="$TMP_DIR/cli-$name"
+  mkdir -p "$CLI_CASE_HOME"
+  printf "['app-rules@local']\n" >"$STATE_FILE"
+  : >"$SET_LOG"
+  CLI_CASE_STATUS=0
+  env PATH="$BIN_DIR:$PATH" CLI_CASE_HOME="$CLI_CASE_HOME" \
+    SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$CLI_CASE_HOME" \
+    XDG_STATE_HOME="$CLI_CASE_HOME/.local/state" \
+    bash "$REPO_ROOT/install.sh" "$@" >"$TMP_DIR/cli-$name.out" \
+    2>"$TMP_DIR/cli-$name.err" || CLI_CASE_STATUS=$?
+}
+
+# assert_cli_unchanged: Ensure a command changed neither files nor settings.
+# Arguments: $1 - case label.
+# Returns: 0; updates assertion counters.
+assert_cli_unchanged() {
+  local name="$1"
+  assert_eq "['app-rules@local']" "$(cat "$STATE_FILE")" "$name must preserve enabled extensions"
+  assert_eq "" "$(cat "$SET_LOG")" "$name must not write desktop settings"
+  if [[ -e "$CLI_CASE_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID" ]]; then
+    FAIL=$((FAIL + 1)); echo "FAIL: $name must not deploy files"
+  else
+    PASS=$((PASS + 1))
+  fi
+}
+
+for option in --select --reconfigure --uninstall --config; do
+  run_cli_case "missing-${option#--}" "$option"
+  assert_eq "2" "$CLI_CASE_STATUS" "$option must require an explicit argument"
+  assert_cli_unchanged "$option missing argument"
+done
+run_cli_case unknown-option --option-does-not-exist
+assert_eq "2" "$CLI_CASE_STATUS" "Unknown options should return usage status"
+assert_cli_unchanged "Unknown option"
+run_cli_case unknown-component --select 'count_threshold,component_does_not_exist'
+assert_eq "2" "$CLI_CASE_STATUS" "Unknown component selections should return usage status"
+assert_cli_unchanged "Unknown component"
+run_cli_case missing-before-option --select --default
+assert_eq "2" "$CLI_CASE_STATUS" "An option must not be consumed as a component argument"
+assert_cli_unchanged "Missing selection before option"
+run_cli_case invalid-after-help --help --option-does-not-exist
+assert_eq "2" "$CLI_CASE_STATUS" "Parsing must validate arguments after help"
+assert_cli_unchanged "Invalid argument after help"
+run_cli_case missing-config --config config_does_not_exist
+if [[ "$CLI_CASE_STATUS" == "0" ]]; then
+  FAIL=$((FAIL + 1)); echo "FAIL: a missing config must fail"
+else
+  PASS=$((PASS + 1))
+fi
+assert_cli_unchanged "Missing config"
+run_cli_case export-config-order --export-selection --config empty
+assert_eq "0" "$CLI_CASE_STATUS" "Export should accept --config after the command"
+assert_cli_unchanged "Config export"
+if python3 - "$TMP_DIR/cli-export-config-order.out" <<'PYCASE'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    document = json.load(stream)
+assert all(values["on"] == 0 for values in document["components"].values())
+PYCASE
+then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); echo "FAIL: export must honor config regardless of argument order"
+fi
+run_cli_case empty-selection --select ''
+assert_eq "0" "$CLI_CASE_STATUS" "An explicitly empty selection should remain accepted"
+assert_file_exists "$CLI_CASE_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/extension.js" \
+  "An explicitly empty selection should deploy the core"
+run_cli_case quoted-selection --select 'count_threshold badge_position'
+assert_eq "0" "$CLI_CASE_STATUS" "Quoted multi-component selection should remain accepted"
+assert_file_contains "$SET_LOG" $'count-threshold\t2' "Quoted selections should apply the threshold"
+assert_file_contains "$SET_LOG" $'badge-position\t' "Quoted selections should apply the position"
+
+if command -v script >/dev/null 2>&1; then
+  run_cli_case cancel-preparation --help
+  : >"$SET_LOG"
+  if ! printf 'q\n' | env PATH="$BIN_DIR:$PATH" CLI_CASE_HOME="$CLI_CASE_HOME" \
+    SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$CLI_CASE_HOME" \
+    XDG_STATE_HOME="$CLI_CASE_HOME/.local/state" \
+    script -q -e -c "bash \"$REPO_ROOT/install.sh\"" /dev/null \
+    >"$TMP_DIR/cancel.out" 2>"$TMP_DIR/cancel.err"; then
+    FAIL=$((FAIL + 1)); echo "FAIL: cancelling selection should exit successfully"
+  fi
+  assert_cli_unchanged "Cancelled selection"
 fi
 
 echo ""

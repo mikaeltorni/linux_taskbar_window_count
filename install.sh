@@ -60,37 +60,14 @@ source "$SCRIPT_DIR/lib/component_runtime.sh"
 # Arguments: $@ - forwarded to component_main.
 # Returns: the exit status of component_main.
 main() {
-  msg "=== Linux Taskbar Window Count Setup ==="
-
   if [ -z "${ISC_COMPONENTS:-}" ]; then
     echo "ERROR: ISC_COMPONENTS manifest is not defined." >&2
     exit 1
   fi
 
-  # Deploy the extension core first, then configure its optional settings
-  install_window_count_extension
-  msg "Configuring window-count badge options"
+  # Resolve and validate commands before the runtime deploys the core.
   component_main "$@"
 }
-
-# Read-only, help, and uninstall commands bypass the unconditional core deploy.
-# Check every argument so combinations such as --config NAME --export-selection
-# remain side-effect free as well.
-READONLY_COMMAND=0
-for arg in "$@"; do
-  case "$arg" in
-    --list-components|--list-configurable-components|--list-select-configure-components|\
-    --list-component-config-values|--export-selection|--detect|--help|-h|\
-    --configure-component|--configure-component=*|--uninstall|--uninstall=*)
-      READONLY_COMMAND=1
-      break
-      ;;
-  esac
-done
-if [[ "$READONLY_COMMAND" == "1" ]]; then
-  component_main "$@"
-  exit $?
-fi
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"

@@ -73,7 +73,9 @@ function readNonNegativeInt(value) {
  * @returns {number|null} Zero-based monitor index, or null when unresolved.
  */
 export function resolveIconMonitorIndex(delegate, display) {
-  const panelIndex = readNonNegativeInt(delegate?._dtpPanel?.monitor?.index);
+  const panelIndex =
+    readNonNegativeInt(delegate?.dtpPanel?.monitor?.index) ??
+    readNonNegativeInt(delegate?._dtpPanel?.monitor?.index);
   if (panelIndex !== null) {
     return panelIndex;
   }

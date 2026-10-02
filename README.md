@@ -2,8 +2,10 @@
 
 GNOME Shell extension that shows per-app window counts on taskbar icons for the current workspace by default, scoped to each icon's monitor.
 
-The badge defaults to the bottom-right corner. The extension metadata declares
-GNOME Shell 45–50 support; the project is tested on Ubuntu 24.04.4 LTS.
+The default badge uses 18px text and sits at bottom-right on horizontal panels
+and bottom-left on vertical panels. It works with Ubuntu Dock and Dash to Panel.
+The extension metadata declares GNOME Shell 45–50 support; runtime testing was
+performed on Ubuntu 24.04.5 LTS with GNOME Shell 46 on X11.
 
 [![Tested on Ubuntu 24.04](https://img.shields.io/badge/tested%20on-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)](https://ubuntu.com/about/release-cycle)
 [![GNOME Shell 45–50](https://img.shields.io/badge/GNOME%20Shell-45%E2%80%9350-4A86CF?logo=gnome&logoColor=white)](https://www.gnome.org/)
@@ -28,20 +30,21 @@ GNOME Shell 45–50 support; the project is tested on Ubuntu 24.04.4 LTS.
 
 ## Repository dependencies
 
-The extension itself has no runtime dependency on another repository.
-The installer uses the shared component framework
-(`linux_installation_scripts_functions`) for its component menu and command
-handling. The desktop setup chain provides a sibling checkout. A direct
-`bash install.sh` run attempts to clone the framework when no sibling exists;
-that repository is private, so direct installation requires an existing sibling
-checkout or authorized GitHub access. Without either, the installer stops
-before deployment.
+The extension and installer are self-contained. Component selection, command
+handling, and install receipts use the bundled `lib/component_runtime.sh`.
+A standalone checkout installs without downloading another repository or
+requiring access to a private installer framework.
 
 ## Install the GNOME Shell window-count extension
 
-Run this repository's installer as the desktop user. This user-level install
-does not require `sudo`; direct use still needs the framework access described
-above:
+Run this repository's installer from the checkout as the desktop user, with a
+running GNOME session. On Ubuntu, install any missing build dependencies first:
+
+```bash
+sudo apt install -y -o Dpkg::Options::="--force-confold" cargo python3 libglib2.0-bin
+```
+
+The user-level installer itself runs without `sudo`:
 
 ```bash
 bash install.sh
@@ -61,23 +64,24 @@ which invokes this installer for the selected desktop user.
 | `bash install.sh --default` | Deploy the extension core and all default-on components without prompts. |
 | `bash install.sh --all` | Deploy the extension core and every component without prompts. |
 | `bash install.sh --select count_threshold,badge_position` | Deploy the core and only the named components. |
+| `bash install.sh --select ""` | Deploy the core while preserving existing badge settings. |
 | `bash install.sh --config NAME` | Load the named file from `installation_configs/` for the selection. |
 | `bash install.sh --reconfigure badge_position,count_threshold` | Re-apply the named components' configuration. |
 | `bash install.sh --uninstall badge_position,count_threshold` | Uninstall the named components. |
-| `bash install.sh --auth` | Allow authenticated Git clone or pull operations in components. |
+| `bash install.sh --auth` | Accept the setup chain's authentication flag; this installer performs no Git downloads. |
 | `bash install.sh --list-components` | Print component IDs and labels without deploying. |
-| `bash install.sh --list-configurable-components` | Print components with nested configuration screens. |
-| `bash install.sh --list-select-configure-components` | Print components that configure during selection. |
-| `bash install.sh --list-component-config-values` | Print editable component IDs and current values. |
-| `bash install.sh --configure-component ID` | Open a component's nested configuration screen. |
+| `bash install.sh --list-configurable-components` | Print nested configuration components; empty in this repository. |
+| `bash install.sh --list-select-configure-components` | Print configure-on-selection components; empty in this repository. |
+| `bash install.sh --list-component-config-values` | Print nested configuration values; empty in this repository. |
+| `bash install.sh --configure-component ID` | Report that no nested configuration screen exists, with exit status 2. |
 | `bash install.sh --detect` | Print each component's installed or absent state. |
 | `bash install.sh --export-selection` | Print the resolved component selection as JSON without deploying or changing settings. |
 | `bash install.sh --help` | Show the complete installer usage. |
 
 ## Window-count badge components
 
-The installer follows the shared component framework, so the master installer's
-menu shows this repository with a per-feature submenu. The **core deploy**
+The installer exposes a component manifest for the desktop setup chain and
+provides its own component selection in a standalone checkout. The **core deploy**
 (copying the extension, compiling its GSettings schema, and enabling it) always
 runs first, so the window-count badge works no matter which components are
 selected. Each component below then writes one part of the configuration; all
@@ -85,20 +89,33 @@ are **default-on**, so a plain install reproduces the built-in behavior.
 
 | Component id | What it configures | Default | Env override |
 |---|---|---|---|
-| `badge_position` | Corner the badge sits in | `bottom-right` | `WWC_BADGE_POSITION` |
+| `badge_position` | Corner the badge sits in | `bottom-right` (bottom-left on vertical panels) | `WWC_BADGE_POSITION` |
 | `count_threshold` | Minimum window count to show the badge | `2` | `WWC_COUNT_THRESHOLD` |
 | `workspace_scope` | Count current workspace only vs. all workspaces | current only (`false`) | `WWC_COUNT_ALL_WORKSPACES` |
-| `badge_appearance` | Badge text/background color and font size | `#ffffff` / `transparent` / `14` | `WWC_BADGE_TEXT_COLOR`, `WWC_BADGE_BACKGROUND_COLOR`, `WWC_BADGE_FONT_SIZE` |
+| `badge_appearance` | Badge text/background color and font size | `#ffffff` / `transparent` / `18` | `WWC_BADGE_TEXT_COLOR`, `WWC_BADGE_BACKGROUND_COLOR`, `WWC_BADGE_FONT_SIZE` |
+
+The `bottom-right` setting adapts to the orientation of Dash to Panel, Ubuntu
+Dock, and Dash to Dock. Other corner choices retain their literal placement.
+The default size increased from 14px to 18px, rounding a 25% increase to the
+nearest whole pixel. Font sizes remain configurable from 6px through 64px.
 
 ## Customize window-count badges at runtime
 
 Every component setting is also editable live — open the extension's settings in
-the GNOME Extensions app (backed by `prefs.js`), or set a key directly, e.g.:
+the GNOME Extensions app (backed by `prefs.js`), or use:
 
 ```bash
-gsettings set org.gnome.shell.extensions.workspace-window-count badge-position 'top-right'
-gsettings set org.gnome.shell.extensions.workspace-window-count count-threshold 1
-gsettings set org.gnome.shell.extensions.workspace-window-count count-all-workspaces true
+gnome-extensions prefs workspace-window-count@local
+```
+
+For command-line settings, point GSettings at the installed extension's schema:
+
+```bash
+WWC_SCHEMA_DIR="$HOME/.local/share/gnome-shell/extensions/workspace-window-count@local/schemas"
+gsettings --schemadir "$WWC_SCHEMA_DIR" set org.gnome.shell.extensions.workspace-window-count badge-position 'top-right'
+gsettings --schemadir "$WWC_SCHEMA_DIR" set org.gnome.shell.extensions.workspace-window-count count-threshold 1
+gsettings --schemadir "$WWC_SCHEMA_DIR" set org.gnome.shell.extensions.workspace-window-count count-all-workspaces true
+gsettings --schemadir "$WWC_SCHEMA_DIR" set org.gnome.shell.extensions.workspace-window-count badge-font-size 24
 ```
 
 Settings apply **live** with no Shell reload. If the GSettings schema is not
@@ -124,8 +141,9 @@ org.gnome.shell enabled-extensions
 - `extension.js` owns the GNOME Shell lifecycle, signal connections, refresh
   scheduling, and reads the GSettings schema (with a built-in default fallback)
   to apply position, threshold, scope, and appearance live.
-- `badgeLifecycle.js` creates, anchors (any corner), restyles, reuses, and
-  destroys badge actors.
+- `badgeLifecycle.js` creates, anchors, restyles, reuses, and destroys badge
+  actors. It resolves panel orientation and uses an overlay layer to prevent
+  the icon's box layout from collapsing the label.
 - `windowDiscovery.js` counts application windows on the icon's monitor
   (current workspace or all workspaces) and discovers app-icon delegates in
   the Shell actor tree.
@@ -137,6 +155,8 @@ org.gnome.shell enabled-extensions
 - `installer/components.sh` is the component manifest; `lib/window_count_setup.sh`
   holds the core deploy plus the per-component configuration functions.
 - `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
+- `lib/component_runtime.sh` handles standalone component selection, saved
+  configurations, receipt tracking, reconfiguration, and uninstall commands.
 - `wwc-tools` (Rust, `src/`) parses, de-duplicates, and serializes GSettings
   string-array values for `install.sh`, logging each run to
   `.log/gsettings_strv.log`. The installer builds it via
@@ -154,30 +174,43 @@ org.gnome.shell enabled-extensions
 ## Tests
 
 ```bash
-node --experimental-default-type=module --test tests/*.mjs
+node --test tests/*.mjs
 cargo test --locked
 bash tests/test_install.sh
 ```
 
 The installer test uses an isolated home directory and mocked session commands
 to verify complete, repeatable deployment without changing the live desktop.
+JavaScript regression tests cover window discovery, monitor and workspace
+scope, badge positioning, resizing, and overlay cleanup. Installer checks also
+verify the compiled schema's default font size and custom size overrides.
+
+On a fresh Ubuntu 24.04.5 VM, installation and repeated installation succeeded
+with the packaged Cargo 1.75. The VM passed 30 JavaScript tests, 8 Rust tests,
+and 82 installer checks. Screenshots confirmed 18px badges in both orientations
+on Ubuntu Dock and Dash to Panel 74, correct current/all-workspace counts,
+threshold changes, and the preferences dialog. Runtime testing used GNOME 46
+on X11; other declared Shell versions and Wayland were not exercised in that VM.
 
 ## Idempotency
 
 - Existing extension files are overwritten by the same source files.
 - GSettings append logic de-duplicates entries and preserves already-enabled
   extensions.
+- `--default` reapplies default component settings; use `--select ""` to update
+  the extension files while keeping custom settings.
 - Missing source directories produce a warning and skip only this feature.
 
 ## Dependencies
 
-This repo expects `linux_installations_setup` to provide GNOME Shell, the
-shared installer framework, Cargo 1.75 or newer, `glib-compile-schemas`
-(package `libglib2.0-bin`), and the target user's session bus before child
-installers run. `Cargo.lock` uses format 3 so Ubuntu 24.04's packaged Cargo
-1.75 can read it. Docker/Podman can build `wwc-tools` when Cargo is unavailable.
-A direct install without a sibling framework checkout also needs Git and
-authorized access to the private framework repository.
+Installation requires a running GNOME Shell desktop and the target user's
+session bus, `gsettings`, Python 3 for configuration and selection JSON, and
+Cargo 1.75 or newer to build the bundled Rust helper. `glib-compile-schemas`
+(package `libglib2.0-bin`) enables live settings and the preferences dialog.
+`Cargo.lock` uses format 3 so Ubuntu 24.04's packaged Cargo 1.75 can read it.
+Docker/Podman can build `wwc-tools` when Cargo is unavailable; an existing fresh
+helper binary also works without a toolchain. JavaScript tests require Node.js
+18 or newer; Node.js is not needed to run the extension.
 
 If `glib-compile-schemas` is missing, the core deploy still completes and the
 extension falls back to its built-in defaults. The extension metadata declares
@@ -209,13 +242,12 @@ bash install.sh --reconfigure badge_position,count_threshold
 bash install.sh --uninstall badge_position,count_threshold
 ```
 
-In the interactive menu (run `bash install.sh` on a terminal, or via the master
-installer), already-installed components show a green `✓`. Select one with
-**space** to **reconfigure** it (`~`), press **`u`** to mark it for **uninstall**
-(`✗`), or press **`r`** to reconfigure every installed component at once. Detection
-uses a live check where deterministic and otherwise an install receipt under
-`${XDG_STATE_HOME:-~/.local/state}/isc/receipts/`; a component without a reversal
-step simply clears that receipt on uninstall.
+The standalone terminal menu lists component IDs and asks which to install or
+reconfigure, followed by which to uninstall. Enter accepts the default install
+selection or an empty uninstall selection; `q` cancels component selection.
+Use comma-separated or space-separated IDs. Detection uses a live check where
+deterministic and otherwise an install receipt under
+`${XDG_STATE_HOME:-~/.local/state}/isc/receipts/linux_taskbar_window_count/`.
 
 Every knob here uses the receipt rather than a live check on purpose. Each one
 writes a settings value that is often identical to the schema default the
@@ -246,7 +278,7 @@ Yes. Enable **Count all workspaces** in the extension settings, or set
 ### Which GNOME Shell versions does the extension support?
 
 The extension metadata lists GNOME Shell versions 45 through 50. The project is
-tested on Ubuntu 24.04.4 LTS.
+tested on Ubuntu 24.04.5 LTS with GNOME Shell 46 on X11.
 
 ## License and disclaimer
 

@@ -15,8 +15,9 @@
       <summary>Badge corner on each taskbar app icon</summary>
       <description>
         Which corner of the app icon the window-count badge is drawn in. The
-        default, bottom-right, sits opposite the top-right notification counters
-        so the two never overlap.
+        default, bottom-right, adapts to bottom-left on vertical panels and
+        stays bottom-right on horizontal panels. Other corners keep their
+        literal placement. Default badges avoid top-right notification counters.
       </description>
     </key>
 

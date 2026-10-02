@@ -292,12 +292,12 @@ Usage:
   bash install.sh --select a,b,c  Install exactly these component IDs
   bash install.sh --reconfigure a,b,c  Re-apply selected component settings
   bash install.sh --uninstall a,b,c    Uninstall selected components
-  bash install.sh --auth          Allow authenticated Git operations in components
+  bash install.sh --auth          Accept the setup chain's compatibility flag
   bash install.sh --list-components  List component IDs and labels
-  bash install.sh --list-configurable-components  List nested configuration screens
-  bash install.sh --list-select-configure-components  List configure-on-select IDs
-  bash install.sh --list-component-config-values  List current configurable values
-  bash install.sh --configure-component ID  Run a nested screen when one is defined
+  bash install.sh --list-configurable-components  No nested screens (empty output)
+  bash install.sh --list-select-configure-components  No nested screens (empty output)
+  bash install.sh --list-component-config-values  No nested values (empty output)
+  bash install.sh --configure-component ID  Report no nested screen (status 2)
   bash install.sh --detect        Show id<TAB>installed|absent state
   bash install.sh --export-selection  Export resolved selection as JSON
   bash install.sh --help          Show this help

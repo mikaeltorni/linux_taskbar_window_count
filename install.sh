@@ -15,7 +15,17 @@
 #   bash install.sh --default         # core + every default-on component, no prompts
 #   bash install.sh --all             # core + every component, no prompts
 #   bash install.sh --select a,b,c    # core + only the listed component ids
+#   bash install.sh --reconfigure a,b,c # re-apply the listed component settings
+#   bash install.sh --config NAME     # load installation_configs/NAME.json
+#   bash install.sh --auth            # accept the setup chain's auth flag
+#   bash install.sh --uninstall a,b,c # reset the listed settings, no core deploy
 #   bash install.sh --list-components # machine-readable component list (no deploy)
+#   bash install.sh --list-configurable-components # no nested screens (empty)
+#   bash install.sh --list-select-configure-components # no nested screens (empty)
+#   bash install.sh --list-component-config-values # no nested values (empty)
+#   bash install.sh --configure-component ID # report no nested screen (status 2)
+#   bash install.sh --detect          # component receipt state (no deploy)
+#   bash install.sh --export-selection # resolved selection JSON (no deploy)
 #   bash install.sh --help            # usage
 # The master install chain may invoke this under sudo; SUDO_USER is targeted.
 

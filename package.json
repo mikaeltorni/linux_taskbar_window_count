@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/test_badge_lifecycle.mjs tests/test_window_discovery.mjs"
+    "test": "node --test tests/*.mjs"
   }
 }

@@ -182,7 +182,9 @@ _wwc_selection_config() {
 # Returns: 0 for valid IDs (including an empty selection), 2 otherwise.
 _wwc_validate_component_ids() {
   local requested="${1//,/ }" token
-  for token in $requested; do
+  local -a tokens=()
+  IFS=$' \t\n' read -r -a tokens <<<"${requested//$'\n'/ }"
+  for token in "${tokens[@]}"; do
     if ! _wwc_component_field "$token" 0 >/dev/null; then
       msg "ERROR: unknown component id '$token'" >&2
       return 2
@@ -195,9 +197,10 @@ _wwc_validate_component_ids() {
 # Returns: 0 when selected functions succeed, otherwise non-zero.
 _wwc_run_selected() {
   local requested="$1" strictness="${2:-derived}" selected=" " token entry id label default fn
-  local -a failed=()
+  local -a failed=() tokens=()
   requested="${requested//,/ }"
-  for token in $requested; do
+  IFS=$' \t\n' read -r -a tokens <<<"${requested//$'\n'/ }"
+  for token in "${tokens[@]}"; do
     if ! _wwc_component_field "$token" 0 >/dev/null; then
       msg "ERROR: unknown component id '$token'" >&2
       [[ "$strictness" == "strict" ]] && return 2
@@ -238,8 +241,9 @@ _wwc_run_selected() {
 # Returns: 0 when removals succeed, otherwise 1 or 2 for invalid IDs.
 _wwc_uninstall_selected() {
   local requested="${1//,/ }" selected=" " token i entry id label default fn detect uninstall
-  local -a ordered=() failed=()
-  for token in $requested; do
+  local -a ordered=() failed=() tokens=()
+  IFS=$' \t\n' read -r -a tokens <<<"${requested//$'\n'/ }"
+  for token in "${tokens[@]}"; do
     if ! _wwc_component_field "$token" 0 >/dev/null; then
       msg "ERROR: unknown component id '$token'" >&2
       return 2

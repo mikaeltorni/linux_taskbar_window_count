@@ -556,11 +556,13 @@ run_cli_case() {
   printf "['app-rules@local']\n" >"$STATE_FILE"
   : >"$SET_LOG"
   CLI_CASE_STATUS=0
-  env PATH="$BIN_DIR:$PATH" CLI_CASE_HOME="$CLI_CASE_HOME" \
-    SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$CLI_CASE_HOME" \
-    XDG_STATE_HOME="${CLI_CASE_STATE_HOME:-$CLI_CASE_HOME/.local/state}" \
-    bash "${CLI_CASE_REPO_ROOT:-$REPO_ROOT}/install.sh" "$@" >"$TMP_DIR/cli-$name.out" \
-    2>"$TMP_DIR/cli-$name.err" || CLI_CASE_STATUS=$?
+  (
+    cd "$CLI_CASE_HOME"
+    env PATH="$BIN_DIR:$PATH" CLI_CASE_HOME="$CLI_CASE_HOME" \
+      SUDO_USER="$TEST_TARGET_USER" DISPLAY=:99 HOME="$CLI_CASE_HOME" \
+      XDG_STATE_HOME="${CLI_CASE_STATE_HOME:-$CLI_CASE_HOME/.local/state}" \
+      bash "${CLI_CASE_REPO_ROOT:-$REPO_ROOT}/install.sh" "$@"
+  ) >"$TMP_DIR/cli-$name.out" 2>"$TMP_DIR/cli-$name.err" || CLI_CASE_STATUS=$?
 }
 
 # assert_cli_unchanged: Ensure a command changed neither files nor settings.
@@ -727,6 +729,19 @@ if [[ -e "$RECEIPT_CASE_DIR/count_threshold" ]]; then
 else
   PASS=$((PASS + 1))
 fi
+
+# A quoted selection is a list of literal IDs, never a filename pattern.
+for mode in select uninstall; do
+  mkdir -p "$TMP_DIR/cli-glob-$mode"
+  : >"$TMP_DIR/cli-glob-$mode/count_threshold"
+  run_cli_case "glob-$mode" "--$mode" '*'
+  assert_eq "2" "$CLI_CASE_STATUS" "--$mode must reject a literal wildcard as an unknown ID"
+  assert_cli_unchanged "--$mode wildcard"
+done
+run_cli_case multiline-selection --select $'count_threshold\nbadge_position'
+assert_eq "0" "$CLI_CASE_STATUS" "Literal parsing should preserve multiline component selections"
+assert_file_contains "$SET_LOG" $'count-threshold\t2' "Multiline selections should apply the threshold"
+assert_file_contains "$SET_LOG" $'badge-position\t' "Multiline selections should apply the position"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

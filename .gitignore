@@ -9,3 +9,7 @@ dist/
 .cursor/skills/programming-prompts/
 .cursor/rules/programming-prompts-always-on.mdc
 # END programming-prompts-cursor
+
+# Local workflow evidence and Python bytecode caches
+/tmp/
+__pycache__/

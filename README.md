@@ -78,6 +78,28 @@ which invokes this installer for the selected desktop user.
 | `bash install.sh --export-selection` | Print the resolved component selection as JSON without deploying or changing settings. |
 | `bash install.sh --help` | Show the complete installer usage. |
 
+Arguments and component IDs are validated before deployment. Unknown options,
+unexpected positional arguments, missing option values, and unknown component
+IDs return status 2 without changing files or desktop settings. Component IDs
+are literal names separated by commas or whitespace; quoted filename patterns
+such as `"*"` are rejected. Cancelling the terminal menu also leaves the desktop
+unchanged. An explicitly empty selection (`--select ""`) remains a valid core
+deployment.
+
+Saved configurations contain a `components` object keyed by the listed IDs,
+with an object of fields for each component. The `on` flag selects whether that
+component runs. Flags accept numeric `0`/`1`, JSON `false`/`true`, or strings
+`"0"`/`"1"`, `"false"`/`"true"`, and `"off"`/`"on"`. Missing flags in an explicit
+config are disabled. Installation and JSON export use the same validation and
+normalization; malformed configs or unknown config IDs fail before deployment.
+Component values still come from the environment overrides listed below.
+
+Export accepts the config option in either order:
+
+```bash
+bash install.sh --export-selection --config empty
+```
+
 ## Window-count badge components
 
 The installer exposes a component manifest for the desktop setup chain and
@@ -157,10 +179,28 @@ org.gnome.shell enabled-extensions
 - `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
 - `lib/component_runtime.sh` handles standalone component selection, saved
   configurations, receipt tracking, reconfiguration, and uninstall commands.
+- `lib/selection_config.py` validates and normalizes saved component selections
+  for both installation and export. It uses only Python's standard library.
 - `wwc-tools` (Rust, `src/`) parses, de-duplicates, and serializes GSettings
   string-array values for `install.sh`, logging each run to
   `.log/gsettings_strv.log`. The installer builds it via
   `scripts/build_wwc_tools.sh` and invokes it through `lib/wwc_bin.sh`.
+
+### Rust helper command
+
+The build entrypoint is `bash scripts/build_wwc_tools.sh`. Its `--print` option
+prints the built binary's absolute path; `--help` shows usage. The resulting
+`dist/wwc-tools` command accepts exactly one string argument and reads the
+existing array from `CURRENT`:
+
+```bash
+CURRENT="@as ['one']" ./dist/wwc-tools "two words"
+```
+
+It prints `['one', 'two words']`, preserving existing values and removing
+duplicates. It handles [GVariant string escapes](https://docs.gtk.org/glib/gvariant-text-format.html),
+including Unicode and control characters. Missing or extra arguments return
+status 2; diagnostics go to stderr while stdout is reserved for the array.
 
 ## Logging
 
@@ -185,6 +225,14 @@ JavaScript regression tests cover window discovery, monitor and workspace
 scope, badge positioning, resizing, and overlay cleanup. Installer checks also
 verify the compiled schema's default font size and custom size overrides.
 
+The follow-up source review passed 35 JavaScript tests, 11 Rust tests, and 195
+installer checks locally, plus `cargo fmt --check`,
+`cargo clippy --locked --all-targets -- -D warnings`, shell/JavaScript syntax
+checks, and strict schema compilation. The added preferences checks use GI
+substitutes and create no GUI windows. Installer regressions cover invalid
+commands without side effects, config/export consistency, literal selections,
+failed settings reads, and the target-user receipt route under simulated sudo.
+
 On a fresh Ubuntu 24.04.5 VM, installation and repeated installation succeeded
 with the packaged Cargo 1.75. The VM passed 30 JavaScript tests, 8 Rust tests,
 and 82 installer checks. Screenshots confirmed 18px badges in both orientations
@@ -196,7 +244,8 @@ on X11; other declared Shell versions and Wayland were not exercised in that VM.
 
 - Existing extension files are overwritten by the same source files.
 - GSettings append logic de-duplicates entries and preserves already-enabled
-  extensions.
+  extensions. If reading that list fails, it skips the write and reports a
+  warning rather than replacing existing state with an empty list.
 - `--default` reapplies default component settings; use `--select ""` to update
   the extension files while keeping custom settings.
 - Missing source directories produce a warning and skip only this feature.
@@ -210,7 +259,7 @@ Cargo 1.75 or newer to build the bundled Rust helper. `glib-compile-schemas`
 `Cargo.lock` uses format 3 so Ubuntu 24.04's packaged Cargo 1.75 can read it.
 Docker/Podman can build `wwc-tools` when Cargo is unavailable; an existing fresh
 helper binary also works without a toolchain. JavaScript tests require Node.js
-18 or newer; Node.js is not needed to run the extension.
+18.19 or newer; Node.js is not needed to run the extension.
 
 If `glib-compile-schemas` is missing, the core deploy still completes and the
 extension falls back to its built-in defaults. The extension metadata declares
@@ -248,6 +297,10 @@ selection or an empty uninstall selection; `q` cancels component selection.
 Use comma-separated or space-separated IDs. Detection uses a live check where
 deterministic and otherwise an install receipt under
 `${XDG_STATE_HOME:-~/.local/state}/isc/receipts/linux_taskbar_window_count/`.
+When invoked as root for a desktop user, the default receipt directory is
+under that user's home and receipt writes/removal run as that user. The
+caller's root-owned `XDG_STATE_HOME` is ignored; `ISC_RECEIPT_DIR` can explicitly
+override the receipt base directory.
 
 Every knob here uses the receipt rather than a live check on purpose. Each one
 writes a settings value that is often identical to the schema default the

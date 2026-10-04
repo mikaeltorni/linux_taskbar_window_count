@@ -7,6 +7,10 @@ and bottom-left on vertical panels. It works with Ubuntu Dock and Dash to Panel.
 The extension metadata declares GNOME Shell 45–50 support; runtime testing was
 performed on Ubuntu 24.04.5 LTS with GNOME Shell 46 on X11.
 
+[![Last commit](https://img.shields.io/github/last-commit/mikaeltorni/linux_taskbar_window_count)](https://github.com/mikaeltorni/linux_taskbar_window_count/commits/master)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/mikaeltorni/linux_taskbar_window_count)](https://github.com/mikaeltorni/linux_taskbar_window_count/graphs/commit-activity)
+[![Issues](https://img.shields.io/github/issues/mikaeltorni/linux_taskbar_window_count)](https://github.com/mikaeltorni/linux_taskbar_window_count/issues)
+
 [![Tested on Ubuntu 24.04](https://img.shields.io/badge/tested%20on-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)](https://ubuntu.com/about/release-cycle)
 [![GNOME Shell 45–50](https://img.shields.io/badge/GNOME%20Shell-45%E2%80%9350-4A86CF?logo=gnome&logoColor=white)](https://www.gnome.org/)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)

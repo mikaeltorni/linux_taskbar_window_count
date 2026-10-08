@@ -640,7 +640,8 @@ if command -v script >/dev/null 2>&1; then
 fi
 
 # Saved selection fixtures use a separate repository copy: never create or
-# overwrite config files in the user's checkout.
+# overwrite config files in the user's checkout. Inject the real native helper
+# because this deliberately reduced fixture omits the Rust build sources.
 CONFIG_CASE_REPO="$TMP_DIR/config-repo"
 mkdir -p "$CONFIG_CASE_REPO"
 cp -a "$REPO_ROOT/install.sh" "$REPO_ROOT/lib" "$REPO_ROOT/installer" \
@@ -655,7 +656,7 @@ printf '%s\n' '{"components":[]}' >"$CONFIG_CASE_REPO/installation_configs/inval
 printf '%s\n' '{"components":{"component_does_not_exist":{"on":1}}}' \
   >"$CONFIG_CASE_REPO/installation_configs/invalid-component-id.json"
 for config in flag-values enabled-values; do
-  CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" run_cli_case "flags-$config" --config "$config" --export-selection
+  CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" WWC_BIN="$REPO_ROOT/dist/wwc-tools" run_cli_case "flags-$config" --config "$config" --export-selection
   assert_eq "0" "$CLI_CASE_STATUS" "Export should accept supported flag values"
   assert_cli_unchanged "Flag export $config"
   if python3 - "$TMP_DIR/cli-flags-$config.out" "$config" <<'PYCASE'
@@ -683,7 +684,7 @@ for config in invalid-root invalid-components invalid-component-id; do
   for operation in install export; do
     args=(--config "$config")
     [[ "$operation" == "export" ]] && args+=(--export-selection)
-    CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" run_cli_case "$config-$operation" "${args[@]}"
+    CLI_CASE_REPO_ROOT="$CONFIG_CASE_REPO" WWC_BIN="$REPO_ROOT/dist/wwc-tools" run_cli_case "$config-$operation" "${args[@]}"
     if [[ "$CLI_CASE_STATUS" == "0" ]]; then
       FAIL=$((FAIL + 1)); echo "FAIL: $config should fail during $operation"
     else

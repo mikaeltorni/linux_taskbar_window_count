@@ -164,8 +164,8 @@ _wwc_export_selection() {
 }
 
 # _wwc_selection_config: Resolve selected IDs or JSON through the shared parser.
-# Arguments: $1 - selected or export; $2 - config path (empty uses defaults).
-# Returns: the parser status.
+# Parameters: $1 - selected or export; $2 - config path (empty uses defaults).
+# Returns: native parser status, or failure when unavailable.
 _wwc_selection_config() {
   local entry id label default rest
   local -a manifest=()
@@ -173,12 +173,11 @@ _wwc_selection_config() {
     IFS='|' read -r id label default rest <<<"$entry"
     manifest+=("$id=$([[ "$default" == "on" ]] && printf 1 || printf 0)")
   done
-  if declare -F ensure_wwc_bin >/dev/null 2>&1 && ensure_wwc_bin; then
-    "$WWC_BIN" --selection "$1" \
-      "${ISC_REPO_NAME:-linux_taskbar_window_count}" "$2" "${manifest[@]}"
-    return $?
+  if ! declare -F ensure_wwc_bin >/dev/null 2>&1; then
+    source "${SCRIPT_DIR:?SCRIPT_DIR unset}/lib/wwc_bin.sh" || return 1
   fi
-  python3 "$SCRIPT_DIR/lib/selection_config.py" "$1" \
+  ensure_wwc_bin || return 1
+  "$WWC_BIN" --selection "$1" \
     "${ISC_REPO_NAME:-linux_taskbar_window_count}" "$2" "${manifest[@]}"
 }
 

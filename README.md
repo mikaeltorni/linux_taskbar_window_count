@@ -183,8 +183,8 @@ org.gnome.shell enabled-extensions
 - `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
 - `lib/component_runtime.sh` handles standalone component selection, saved
   configurations, receipt tracking, reconfiguration, and uninstall commands.
-- `lib/selection_config.py` validates and normalizes saved component selections
-  for both installation and export. It uses only Python's standard library.
+- `lib/selection_config.py` remains the fallback validator when cargo cannot
+  build `wwc-tools`.
 - `wwc-tools` (Rust, `src/`) parses, de-duplicates, and serializes GSettings
   string-array values for `install.sh`, logging each run to
   `.log/gsettings_strv.log`. The installer builds it via
@@ -202,7 +202,15 @@ CURRENT="@as ['one']" ./dist/wwc-tools "two words"
 ```
 
 It prints `['one', 'two words']`, preserving existing values and removing
-duplicates. It handles [GVariant string escapes](https://docs.gtk.org/glib/gvariant-text-format.html),
+duplicates. The same binary also resolves saved installation selections:
+
+```bash
+./dist/wwc-tools --selection selected linux_taskbar_window_count "" badge_position=1
+./dist/wwc-tools --selection export linux_taskbar_window_count "" badge_position=1
+```
+
+`selected` prints enabled component ids. `export` prints the standalone
+selection JSON. It handles [GVariant string escapes](https://docs.gtk.org/glib/gvariant-text-format.html),
 including Unicode and control characters. Missing or extra arguments return
 status 2; diagnostics go to stderr while stdout is reserved for the array.
 

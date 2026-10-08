@@ -173,6 +173,11 @@ _wwc_selection_config() {
     IFS='|' read -r id label default rest <<<"$entry"
     manifest+=("$id=$([[ "$default" == "on" ]] && printf 1 || printf 0)")
   done
+  if declare -F ensure_wwc_bin >/dev/null 2>&1 && ensure_wwc_bin; then
+    "$WWC_BIN" --selection "$1" \
+      "${ISC_REPO_NAME:-linux_taskbar_window_count}" "$2" "${manifest[@]}"
+    return $?
+  fi
   python3 "$SCRIPT_DIR/lib/selection_config.py" "$1" \
     "${ISC_REPO_NAME:-linux_taskbar_window_count}" "$2" "${manifest[@]}"
 }

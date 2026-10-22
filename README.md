@@ -1,3 +1,5 @@
+> Part of [mt_stack](https://github.com/mikaeltorni/mt_stack), a Linux setup stack of independently installable projects.
+
 # Linux Taskbar Window Count
 
 GNOME Shell extension that shows per-app window counts on taskbar icons for the current workspace by default, scoped to each icon's monitor.

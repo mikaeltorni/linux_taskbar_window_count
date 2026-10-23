@@ -12,12 +12,6 @@
   min-width: 20px;
   padding: 0 5px;
   text-align: center;
-  text-shadow:
-    0 0 4px rgba(0, 0, 0, 1),
-    0 0 7px rgba(0, 0, 0, 0.95),
-    0 0 10px rgba(0, 0, 0, 0.8),
-    -2px -2px 3px rgba(0, 0, 0, 1),
-     2px -2px 3px rgba(0, 0, 0, 1),
-    -2px  2px 3px rgba(0, 0, 0, 1),
-     2px  2px 3px rgba(0, 0, 0, 1);
+  /* GNOME St supports one shadow per declaration. */
+  text-shadow: 0 0 4px rgba(0, 0, 0, 1);
 }

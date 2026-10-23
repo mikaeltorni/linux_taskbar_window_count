@@ -358,3 +358,15 @@ You are solely responsible for determining whether this software is suitable, sa
 The authors and copyright holders make no guarantees regarding security, reliability, availability, correctness, compliance, non-infringement, or fitness for any particular purpose.
 
 This notice is intended to clarify the nature of the project and does not impose additional restrictions beyond the MIT License.
+
+## Ubuntu VM installer verification
+
+Live Ubuntu 24.04.5 / GNOME 46 X11 verification covered repeat installation,
+menu apply/cancel, three-window badges, current-workspace filtering from three
+to two, and live all-workspace counting. The badge uses one GNOME-compatible
+text shadow. With multiple windows open in a disposable VM, verify live style
+refreshes produce no unsupported-shadow warnings:
+
+```bash
+MT_STACK_VM_TEST=1 bash tests/check_vm_badges.sh
+```

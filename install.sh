@@ -65,20 +65,7 @@ source "$SCRIPT_DIR/lib/window_count_setup.sh"
 source "$SCRIPT_DIR/installer/components.sh"
 source "$SCRIPT_DIR/lib/component_runtime.sh"
 
-# main: Deploy the extension core unconditionally, then route optional settings
-# through the repository-local component runtime.
-# Arguments: $@ - forwarded to component_main.
-# Returns: the exit status of component_main.
-main() {
-  if [ -z "${ISC_COMPONENTS:-}" ]; then
-    echo "ERROR: ISC_COMPONENTS manifest is not defined." >&2
-    exit 1
-  fi
-
-  # Resolve and validate commands before the runtime deploys the core.
-  component_main "$@"
-}
-
+# The public runtime owns the one complete parse and operation dispatch.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main "$@"
+  component_main "$@"
 fi

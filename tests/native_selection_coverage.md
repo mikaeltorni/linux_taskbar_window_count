@@ -1,10 +1,5 @@
 # Native selection parity
 
-Queue: authoritative workflow ledger row 1,
-`/home/mk/projects/installation_scripts/tmp/workflow/6500c77863834cf58c7ec79332b5335a.md`.
-Current steps 33–35 own export/selected and native runtime integration;
-workspace/shared helper ports remain deferred.
-
 | Rule | Saved public assertion |
 | --- | --- |
 | Original default/export bytes and selected order | Retained `tests/selection.rs`, exact original JSON and order twice. |

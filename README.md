@@ -185,10 +185,9 @@ org.gnome.shell enabled-extensions
 - `lib/logging.sh` centralizes Bash installer logging to `.log/install.log`.
 - `lib/component_runtime.sh` handles standalone component selection, saved
   configurations, receipt tracking, reconfiguration, and uninstall commands.
-- `lib/selection_config.py` remains the fallback validator when cargo cannot
-  build `wwc-tools`.
-- `wwc-tools` (Rust, `src/`) parses, de-duplicates, and serializes GSettings
-  string-array values for `install.sh`, logging each run to
+- `wwc-tools` (Rust, `src/`) validates saved component selections and parses,
+  de-duplicates, and serializes GSettings string-array values for `install.sh`,
+  logging each run to
   `.log/gsettings_strv.log`. The installer builds it via
   `scripts/build_wwc_tools.sh` and invokes it through `lib/wwc_bin.sh`.
 

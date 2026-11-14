@@ -47,7 +47,7 @@ Run this repository's installer from the checkout as the desktop user, with a
 running GNOME session. On Ubuntu, install any missing build dependencies first:
 
 ```bash
-sudo apt install -y -o Dpkg::Options::="--force-confold" cargo python3 libglib2.0-bin
+sudo apt install -y -o Dpkg::Options::="--force-confold" cargo libglib2.0-bin
 ```
 
 The user-level installer itself runs without `sudo`:
@@ -267,13 +267,14 @@ on X11; other declared Shell versions and Wayland were not exercised in that VM.
 ## Dependencies
 
 Installation requires a running GNOME Shell desktop and the target user's
-session bus, `gsettings`, Python 3 for configuration and selection JSON, and
-Cargo 1.75 or newer to build the bundled Rust helper. `glib-compile-schemas`
+session bus and `gsettings`. The bundled Rust helper resolves configuration and
+selection JSON and can be built with Cargo 1.75 or newer. `glib-compile-schemas`
 (package `libglib2.0-bin`) enables live settings and the preferences dialog.
 `Cargo.lock` uses format 3 so Ubuntu 24.04's packaged Cargo 1.75 can read it.
 Docker/Podman can build `wwc-tools` when Cargo is unavailable; an existing fresh
 helper binary also works without a toolchain. JavaScript tests require Node.js
-18.19 or newer; Node.js is not needed to run the extension.
+18.19 or newer, and the installer tests require Python 3; neither is needed to
+run the extension or installer.
 
 If `glib-compile-schemas` is missing, the core deploy still completes and the
 extension falls back to its built-in defaults. The extension metadata declares

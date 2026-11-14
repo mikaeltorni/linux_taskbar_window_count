@@ -85,8 +85,9 @@ which invokes this installer for the selected desktop user.
 | `bash install.sh --help` | Show the complete installer usage. |
 
 Arguments and component IDs are validated before deployment. Unknown options,
-unexpected positional arguments, missing option values, and unknown component
-IDs return status 2 without changing files or desktop settings. Component IDs
+unexpected positional arguments, missing option values, conflicting modes, and
+unknown or duplicate component IDs return status 2 without changing files or
+desktop settings. Component IDs
 are literal names separated by commas or whitespace; quoted filename patterns
 such as `"*"` are rejected. Cancelling the terminal menu also leaves the desktop
 unchanged. An explicitly empty selection (`--select ""`) remains a valid core
@@ -372,48 +373,13 @@ MT_STACK_VM_TEST=1 bash tests/check_vm_badges.sh
 
 ## Installer lifecycle
 
-Run these commands from this checkout. The component IDs printed by discovery
-are the same IDs used by the terminal menu and programmatic actions.
-
-| Command | Behavior |
-| --- | --- |
-| `bash install.sh` | Open component selection on a terminal; use the default/config selection otherwise. |
-| `bash install.sh --help` | Show accepted options (`-h` is equivalent). |
-| `bash install.sh --list-components` | Print component IDs, labels and defaults. |
-| `bash install.sh --default` | Apply default-on components. |
-| `bash install.sh --all` | Apply every component. |
-| `bash install.sh --select ID,...` | Apply exactly the named components. |
-| `bash install.sh --reconfigure ID,...` | Reapply those components through the same install operations. |
-| `bash install.sh --uninstall ID,...` | Run the selected removal operations. |
-| `bash install.sh --detect` | Print `ID<TAB>installed` or `ID<TAB>absent`. |
-| `bash install.sh --export-selection` | Print selection JSON without applying it. |
-
-The shared interface also accepts `--config NAME` (an installation JSON name
-or path) and `--auth` (explicit permission for authenticated component actions).
+The command table under [installation](#install-the-gnome-shell-window-count-extension)
+shows the component IDs and supported operations. `--config` accepts a local
+name in `installation_configs/`, with or without the `.json` suffix. The
 `--config=NAME`, `--select=ID,...`, `--reconfigure=ID,...`,
-`--uninstall=ID,...` and `--configure-component=ID` are equivalent forms.
-Advanced discovery is available through `--list-configurable-components`,
-`--list-select-configure-components` and `--list-component-config-values`;
-`--configure-component ID` opens an available nested screen. Atomic owners
-return empty advanced listings and reject unavailable nested configuration.
+`--uninstall=ID,...` and `--configure-component=ID` forms are also accepted.
 
-Explicit `--select ""` selects no optional components; a defined mandatory core
-or installation preflight still runs. `--uninstall ""` is a no-op. Unknown or
-duplicate IDs, missing operands and conflicting modes reject before component
-installation/removal. Help, discovery, detection and export perform no installation.
-Cancelling the component menu performs no install/removal. Configuration screens
-may save their own settings when explicitly accepted.
-
-This owner uses its native Rust configuration resolver. In its line menu,
-Enter selects defaults, `-` selects no installation components, and `q` cancels;
-enter removal IDs at the second prompt. Removal-only requests skip core deployment.
+In the line menu, Enter selects defaults, `-` selects no installation
+components, and `q` cancels; enter removal IDs at the second prompt. An empty
+`--uninstall ""` is a no-op, and removal-only requests skip core deployment.
 User configuration and other installed components are retained.
-
-For example, inspect IDs first, then use the same ID with either interface:
-
-```bash
-bash install.sh --list-components
-bash install.sh --select badge_position
-bash install.sh --detect
-bash install.sh --uninstall badge_position
-```

@@ -1,8 +1,6 @@
-> Part of [mt_stack](https://github.com/mikaeltorni/mt_stack), a Linux setup stack of independently installable projects.
+# Linux Taskbar Window Count for GNOME Shell
 
-# Linux Taskbar Window Count
-
-GNOME Shell extension that shows per-app window counts on taskbar icons for the current workspace by default, scoped to each icon's monitor.
+Linux Taskbar Window Count is a GNOME Shell extension that shows per-app window counts on taskbar icons by monitor and workspace.
 
 The default badge uses 18px text and sits at bottom-right on horizontal panels
 and bottom-left on vertical panels. It works with Ubuntu Dock and Dash to Panel.
@@ -13,9 +11,23 @@ performed on Ubuntu 24.04.5 LTS with GNOME Shell 46 on X11.
 [![Commit activity](https://img.shields.io/github/commit-activity/m/mikaeltorni/linux_taskbar_window_count)](https://github.com/mikaeltorni/linux_taskbar_window_count/graphs/commit-activity)
 [![Issues](https://img.shields.io/github/issues/mikaeltorni/linux_taskbar_window_count)](https://github.com/mikaeltorni/linux_taskbar_window_count/issues)
 
-[![Tested on Ubuntu 24.04](https://img.shields.io/badge/tested%20on-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)](https://ubuntu.com/about/release-cycle)
+[![Tested on Ubuntu 24.04](https://img.shields.io/badge/tested%20on-Ubuntu%2024.04-E95420?logo=ubuntu&logoColor=white)](https://releases.ubuntu.com/24.04/)
 [![GNOME Shell 45–50](https://img.shields.io/badge/GNOME%20Shell-45%E2%80%9350-4A86CF?logo=gnome&logoColor=white)](https://www.gnome.org/)
 [![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
+
+## GNOME taskbar window-count quickstart
+
+From the checkout, list the settings exposed by the installer:
+
+```bash
+bash install.sh --list-components
+```
+
+The list includes the badge threshold, position, workspace scope, and
+appearance. [Install the extension](#install-the-gnome-shell-window-count-extension)
+to apply its default badge to the current workspace.
+
+![Diagram showing a terminal icon with a count of three on the monitor with three windows and no badge on the monitor with one window](docs/window-count-scope.svg)
 
 ## Contents
 
@@ -60,9 +72,10 @@ With a terminal, the installer opens a component menu. Without a terminal, it
 deploys the extension and all default-on components. To install all default-on
 components without prompts, use `bash install.sh --default`.
 
-The broader Ubuntu desktop setup is coordinated by
-[installation_scripts](https://github.com/mikaeltorni/installation_scripts),
-which invokes this installer for the selected desktop user.
+For complementary GNOME workflows, use
+[Linux Automatic Window Tiling](https://github.com/mikaeltorni/linux_automatic_window_tiling)
+to arrange windows and [Linux Taskbar Monitor](https://github.com/mikaeltorni/linux_taskbar_monitor)
+to display system resource use.
 
 | Command | Behavior |
 | --- | --- |
@@ -347,6 +360,11 @@ Yes. Enable **Count all workspaces** in the extension settings, or set
 
 The extension metadata lists GNOME Shell versions 45 through 50. The project is
 tested on Ubuntu 24.04.5 LTS with GNOME Shell 46 on X11.
+
+### How can I see what the installer can configure?
+
+Run `bash install.sh --list-components` from the checkout. It prints the
+component IDs, labels, and defaults without changing desktop settings.
 
 ## License and disclaimer
 

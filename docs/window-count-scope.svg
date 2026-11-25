@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
+  <title id="title">Linux Taskbar Window Count on two monitors</title>
+  <desc id="description">On one GNOME workspace the terminal has three windows on Monitor 1 and one window on Monitor 2. The first icon shows a badge of three. The default minimum of two hides the second icon's badge.</desc>
+  <rect width="1280" height="640" fill="#101a2a"/>
+  <g font-family="DejaVu Sans, sans-serif">
+    <text x="80" y="104" font-size="55" font-weight="700" fill="#f3f6ff">Linux Taskbar Window Count</text>
+    <text x="80" y="158" font-size="27" fill="#bdd1e5">One GNOME workspace across two monitors</text>
+    <g fill="#1d2e44" stroke="#4a637c" stroke-width="2">
+      <rect x="80" y="222" width="536" height="284" rx="24"/>
+      <rect x="664" y="222" width="536" height="284" rx="24"/>
+    </g>
+    <g font-size="29" fill="#eff5fd">
+      <text x="120" y="278">Monitor 1</text>
+      <text x="704" y="278">Monitor 2</text>
+    </g>
+    <g fill="#101a2a" stroke="#6c91ad" stroke-width="2">
+      <rect x="120" y="309" width="110" height="100" rx="16"/>
+      <rect x="704" y="309" width="110" height="100" rx="16"/>
+    </g>
+    <g font-family="monospace" font-size="43" fill="#c6faef">
+      <text x="140" y="376">&gt;_</text>
+      <text x="724" y="376">&gt;_</text>
+    </g>
+    <circle cx="213" cy="393" r="23" fill="#90e7ce"/>
+    <text x="213" y="402" text-anchor="middle" font-size="27" font-weight="700" fill="#101a2a">3</text>
+    <g font-size="24" fill="#bdd1e5">
+      <text x="120" y="465">3 terminal windows · badge displayed</text>
+      <text x="704" y="465">1 terminal window · badge hidden</text>
+    </g>
+    <text x="80" y="570" font-size="24" fill="#bdd1e5">Default minimum: two windows on the icon’s monitor and current workspace.</text>
+  </g>
+</svg>

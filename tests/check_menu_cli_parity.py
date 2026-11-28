@@ -77,7 +77,7 @@ printf '\\n' >> "$EFFECTS"
     for tool in tools.iterdir():
         tool.chmod(0o755)
     cases = []
-    for name in ('cli','menu','cancel'):
+    for name in ('cli','menu','cancel','defaults'):
         home = temporary/name
         home.mkdir()
         sentinel = home/'.config/personal-settings'
@@ -90,7 +90,7 @@ printf '\\n' >> "$EFFECTS"
                    XDG_CACHE_HOME=str(home/'cache'), EFFECTS=str(effects),TERM='xterm',
                    WWC_BIN=str(ROOT/'dist/wwc-tools'), WWC_BADGE_POSITION='top-right',WWC_COUNT_THRESHOLD='2')
         cases.append((home,effects,env))
-    cli,menu,cancel = cases
+    cli,menu,cancel,defaults = cases
     result = subprocess.run(['bash',str(CHECKOUT/'install.sh'),'--select','badge_position,count_threshold'],env=cli[2],text=True,capture_output=True)
     assert result.returncode == 0,(result.stdout,result.stderr)
     status,output = run_menu(menu[2],b'badge_position,count_threshold\r',b'\r')
@@ -113,7 +113,21 @@ printf '\\n' >> "$EFFECTS"
         assert result.returncode == 0,(result.stdout,result.stderr)
         assert set(result.stdout.splitlines()) == {'badge_position\tabsent','count_threshold\tinstalled','workspace_scope\tabsent','badge_appearance\tabsent'},result.stdout
         assert (home/'.config/personal-settings').read_text() == 'user configuration stays'
+    status,output = run_menu(defaults[2],b'\r',b'\r')
+    assert status == 0,output
+    result = subprocess.run(['bash',str(CHECKOUT/'install.sh'),'--detect'],env=defaults[2],text=True,capture_output=True)
+    assert result.returncode == 0,(result.stdout,result.stderr)
+    assert set(result.stdout.splitlines()) == {f'{name}\tinstalled' for name in
+        ('badge_position','count_threshold','workspace_scope','badge_appearance')},result.stdout
+    cancel[2].pop('WWC_BIN')
+    build_attempt = temporary/'cancel-build-attempt'
+    cancel[2]['BUILD_ATTEMPT'] = str(build_attempt)
+    builder = CHECKOUT/'scripts/build_wwc_tools.sh'
+    builder.parent.mkdir()
+    builder.write_text('#!/bin/bash\nprintf attempted > "$BUILD_ATTEMPT"\nprintf "Build unavailable\\n" >&2\nexit 1\n')
+    builder.chmod(0o755)
     status,output = run_menu(cancel[2],b'q\r',b'\r')
     assert status == 0 and not cancel[1].read_text(),output
+    assert not build_attempt.exists(),output
     assert not (cancel[0]/'.local/share/gnome-shell/extensions').exists()
 print('PASS: identical menu/CLI install and removal effects, unchanged config, cancellation and no core redeploy for removal')

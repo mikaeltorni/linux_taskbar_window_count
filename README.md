@@ -398,7 +398,10 @@ name in `installation_configs/`, with or without the `.json` suffix. The
 `--config=NAME`, `--select=ID,...`, `--reconfigure=ID,...`,
 `--uninstall=ID,...` and `--configure-component=ID` forms are also accepted.
 
-In the line menu, Enter selects defaults, `-` selects no installation
-components, and `q` cancels; enter removal IDs at the second prompt. An empty
-`--uninstall ""` is a no-op, and removal-only requests skip core deployment.
+In the line menu, Enter selects defaults from the displayed configuration
+file, `-` selects no installation components, and `q` cancels. Enter
+removal IDs at the second prompt. Opening or cancelling the menu requires
+no native helper build. A confirmed selection resolves the configuration
+before applying changes. An empty `--uninstall ""` is a no-op, and
+removal-only requests skip core deployment.
 User configuration and other installed components are retained.

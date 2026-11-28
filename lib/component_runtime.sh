@@ -94,9 +94,9 @@ _wwc_parse_arguments() {
 }
 
 # Parse one independent terminal request, including cancellation and empty install selection.
-# Parameters: $@ - converted default IDs. Returns: zero and _WWC_MENU_* values, or two for malformed input.
+# Parameters: none. Returns: zero with the parsed _WWC_MENU_* values, or two for malformed input.
 _wwc_parse_menu_request() {
-  printf 'defaults=%s\n' "$*" >&2
+  printf 'parameters=none\n' >&2
   local selected removed
   _WWC_MENU_ACTION=apply
   _WWC_MENU_APPLY=(); _WWC_MENU_REMOVE=()
@@ -106,7 +106,7 @@ _wwc_parse_menu_request() {
     _WWC_MENU_ACTION=cancel
   else
     if [[ -z "$selected" ]]; then
-      _WWC_MENU_APPLY=("$@")
+      _WWC_MENU_ACTION=apply-defaults
     elif [[ "$selected" != - ]]; then
       _wwc_parse_ids "$selected" || { printf '2\n' >&2; return 2; }
       _WWC_MENU_APPLY=("${_WWC_PARSED_IDS[@]}")
@@ -457,18 +457,23 @@ _wwc_apply_selection() {
 }
 
 # Present the terminal input boundary, parse it once and route its ready values.
-# Parameters: $@ - converted default IDs. Returns: zero on cancellation or the selected operation status.
+# Parameters: $1 - normalized config name. Returns: zero on cancellation or the selected operation status.
 _wwc_interactive_selection() {
-  printf 'default_ids=%s\n' "$*" >&2
-  local id label default status=0
+  printf 'config_name=%s\n' "$1" >&2
+  local config="$1" id label default status=0
   printf 'Taskbar window-count components:\n'
   while IFS=$'\t' read -r id label default; do printf '  %-20s %s\n' "$id" "$label"; done < <(_wwc_list_components)
-  printf 'Default selection:'; printf ' %s' "$@"; printf '\n'
-  _wwc_parse_menu_request "$@" || { status=$?; printf '%s\n' "$status" >&2; return "$status"; }
-  case "$_WWC_MENU_ACTION" in
-    cancel) msg 'Selection cancelled — nothing changed.' ;;
-    apply) _wwc_apply_selection _WWC_MENU_APPLY _WWC_MENU_REMOVE; status=$? ;;
-  esac
+  printf 'Default selection uses %s.\n' "$config"
+  _wwc_parse_menu_request || { status=$?; printf '%s\n' "$status" >&2; return "$status"; }
+  if [[ "$_WWC_MENU_ACTION" == cancel ]]; then
+    msg 'Selection cancelled — nothing changed.'
+  else
+    _wwc_config_component_ids "$config" || { status=$?; printf '%s\n' "$status" >&2; return "$status"; }
+    if [[ "$_WWC_MENU_ACTION" == apply-defaults ]]; then
+      _WWC_MENU_APPLY=("${_WWC_CONFIG_IDS[@]}")
+    fi
+    _wwc_apply_selection _WWC_MENU_APPLY _WWC_MENU_REMOVE; status=$?
+  fi
   printf '%s\n' "$status" >&2
   return "$status"
 }
@@ -513,13 +518,13 @@ _wwc_apply_request() {
         default) mapfile -t apply_ids < <(_wwc_default_component_ids) ;;
         all) mapfile -t apply_ids < <(_wwc_all_component_ids) ;;
         auto)
-          _wwc_config_component_ids "$config" || { status=$?; printf '%s\n' "$status" >&2; return "$status"; }
-          apply_ids=("${_WWC_CONFIG_IDS[@]}")
           if [[ -t 0 && -t 1 ]]; then
-            _wwc_interactive_selection "${apply_ids[@]}"; status=$?
+            _wwc_interactive_selection "$config"; status=$?
             printf '%s\n' "$status" >&2
             return "$status"
           fi
+          _wwc_config_component_ids "$config" || { status=$?; printf '%s\n' "$status" >&2; return "$status"; }
+          apply_ids=("${_WWC_CONFIG_IDS[@]}")
           ;;
       esac
       _wwc_apply_selection apply_ids remove_ids; status=$?
